@@ -1,0 +1,42 @@
+# Virtual environments
+.venv/
+env/
+venv/
+
+# Python cache
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Logs
+*.log
+
+# IDE / Editor files
+.vscode/
+.idea/
+*.sublime-workspace
+*.sublime-project
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Jupyter / Notebook
+.ipynb_checkpoints
+
+# Distribution / packaging
+*.egg
+*.egg-info/
+dist/
+build/
+*.whl
+
+# Streamlit local settings
+.streamlit/
+
+# Environment variables / secrets
+.env
+
+# Pip
+pip-log.txt
+pip-delete-this-directory.txt
