@@ -1,7 +1,9 @@
 # Data Processing
 pandas
 numpy
-scipy
+scipy 
+
+#---- 
 seaborn
 
 # Database
