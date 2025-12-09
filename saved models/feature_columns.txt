@@ -20,6 +20,7 @@ p2_rank
 p2_rank_points
 is_p1_seeded
 is_p2_seeded
+seed_diff
 p1_seed_tier
 p2_seed_tier
 p1_ace_roll10
@@ -46,3 +47,7 @@ h2h_total_matches
 h2h_p1_win_rate
 tourney_level_encoded
 surface_encoded
+rank_diff
+rank_ratio
+rank_points_diff
+is_p1_favorite
