@@ -6,11 +6,13 @@ Accuracy: 65.3%, ROC-AUC: 0.64
 
 import streamlit as st
 import pandas as pd
-import numpy as np
-import pickle
-from pathlib import Path
 import plotly.graph_objects as go
-from datetime import datetime
+# components import removed; using standard st.markdown for cards
+
+# Import business logic from src modules
+from src.data import load_database, get_unique_players, get_player_stats, get_last_10_matches
+from src.features import calculate_features
+from src.models import load_model, prepare_features_for_prediction, predict_match
 
 
 st.set_page_config(
@@ -22,340 +24,204 @@ st.set_page_config(
 
 st.markdown("""
     <style>
-    .main { padding: 1rem 2rem; }
+    /* Dark Balanced Palette */
+    :root {
+        --primary: #3b82f6;           /* blue-500 */
+        --primary-dark: #1d4ed8;      /* blue-700 */
+        --secondary: #22c55e;         /* green-500 */
+        --danger: #ef4444;            /* red-500 */
+        --warning: #f59e0b;           /* amber-500 */
+        --bg: #0b1220;                /* darker base */
+        --panel: #0a0f1e;             /* darkest panel */
+        --panel-alt: #0f172a;         /* slate-900 */
+        --border: #1f2937;            /* gray-800 */
+        --text: #e5e7eb;              /* gray-200 */
+        --text-muted: #94a3b8;        /* slate-400 */
+    }
+
+    /* Global */
+    .main { 
+        padding: 1.5rem 3rem; 
+        background: var(--bg);
+        color: var(--text);
+    }
+    body {
+        background: var(--bg);
+        color: var(--text);
+    }
+    
+    /* Sidebar as Drawer */
+    section[data-testid="stSidebar"] {
+        background: var(--panel);
+        border-right: 2px solid var(--border);
+        box-shadow: 4px 0 12px rgba(0,0,0,0.45);
+    }
+    section[data-testid="stSidebar"] * { color: var(--text); }
+
+    /* Buttons */
     .stButton>button {
         width: 100%;
-        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        background: linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%);
         color: white;
-        font-size: 18px;
-        font-weight: bold;
-        padding: 0.75rem;
-        border-radius: 10px;
+        font-size: 16px;
+        font-weight: 600;
+        padding: 0.875rem 1.5rem;
+        border-radius: 12px;
         border: none;
+        box-shadow: 0 4px 6px -1px rgba(37, 99, 235, 0.2);
+        transition: all 0.3s ease;
     }
     .stButton>button:hover {
-        background: linear-gradient(135deg, #764ba2 0%, #667eea 100%);
+        background: linear-gradient(135deg, #1e40af 0%, #1d4ed8 100%);
+        box-shadow: 0 8px 12px -2px rgba(37, 99, 235, 0.3);
+        transform: translateY(-1px);
     }
-    .player-card {
+    
+    /* Player Stats Cards */
+    .stats-box {
         padding: 1.5rem;
-        border-radius: 12px;
-        background-color: #f8f9fa;
-        border: 2px solid #e9ecef;
-        margin-bottom: 1rem;
+        border-radius: 16px;
+        background: var(--panel-alt);
+        border: 2px solid var(--border);
+        text-align: center;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.35);
     }
+    .stats-box h4 {
+        color: var(--text-muted);
+        font-size: 0.875rem;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+        margin-bottom: 0.5rem;
+    }
+    .stats-box p {
+        color: var(--text);
+        font-size: 1rem;
+        font-weight: 600;
+        margin: 0.25rem 0;
+    }
+    .stats-box strong {
+        color: var(--text-muted);
+        font-weight: 500;
+    }
+    
+    /* Match History Cards */
     .match-card {
         padding: 1rem;
-        border-radius: 8px;
-        background-color: white;
-        border-left: 4px solid #667eea;
-        margin-bottom: 0.5rem;
-        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        border-radius: 12px;
+        background: var(--panel-alt);
+        border: 2px solid var(--border);
+        margin-bottom: 0.75rem;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.35);
+        transition: all 0.2s ease;
     }
-    .stats-box {
-        padding: 1rem;
-        border-radius: 8px;
-        background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
-        text-align: center;
+    .match-card:hover {
+        box-shadow: 0 4px 8px rgba(0,0,0,0.45);
+        transform: translateY(-2px);
+    }
+    .match-card h4 { color: var(--text); font-size: 1rem; font-weight: 600; margin: 0; }
+    .match-card p { color: var(--text-muted); margin: 0.25rem 0; font-size: 0.9rem; }
+    .match-card h3 { color: var(--text); font-size: 1.25rem; font-weight: 700; margin: 0; }
+    
+    /* Badges */
+    .win-badge { background: #064e3b; border: 2px solid #10b981; color: #a7f3d0; }
+    .loss-badge { background: #3f0e12; border: 2px solid #ef4444; color: #fecaca; }
+    .pill { background: var(--border); color: white; padding: 0.25rem 0.75rem; border-radius: 6px; font-weight: 700; font-size: 0.875rem; }
+    .pill.win { background: #10b981; }
+    .pill.loss { background: #ef4444; }
+    .badge { padding: 0.25rem 0.5rem; border-radius: 6px; font-weight: 700; font-size: 0.75rem; margin-left: 0.5rem; }
+    .badge.ret, .badge.abd { background: #f59e0b; color: #0b1220; }
+    .badge.wo, .badge.def { background: #ef4444; color: #0b1220; }
+
+    /* Card state modifiers */
+    .match-card.win { border-left: 4px solid #10b981; background: rgba(34,197,94,0.08); }
+    .match-card.loss { border-left: 4px solid #ef4444; background: rgba(239,68,68,0.08); }
+
+    /* Card inner layout */
+    .match-card .top { display:flex; justify-content:space-between; align-items:flex-start; }
+    .match-card .right { text-align:right; }
+    .match-card .meta { margin:0; font-size:0.8rem; color: var(--text-muted); }
+    .match-card .bottom { margin-top:0.75rem; padding-top:0.75rem; border-top:1px solid var(--border); }
+    .match-card .opponent { margin:0; font-weight:600; font-size:0.9rem; color:var(--text); }
+    .match-card .score { margin:0.25rem 0 0 0; color:var(--text); font-size:0.95rem; font-family: Menlo, Consolas, monospace; letter-spacing: 0.02em; }
+    
+    /* Sections */
+    .section-header {
+        color: var(--text);
+        font-size: 1.5rem;
+        font-weight: 700;
+        margin-bottom: 1rem;
+        padding-bottom: 0.5rem;
+        border-bottom: 3px solid var(--primary);
+    }
+    
+    /* Selectboxes */
+    .stSelectbox label {
+        color: var(--text) !important;
+        font-weight: 600 !important;
+        font-size: 0.95rem !important;
     }
     </style>
 """, unsafe_allow_html=True)
 
-@st.cache_resource
-def load_model():
-    """Load XGBoost model, feature columns and label encoders."""
-    try:
-        model_path = Path('models/xgboost_calibrated_model.pkl')
-        with open(model_path, 'rb') as f:
-            model = pickle.load(f)
-        
-        features_path = Path('models/feature_columns.txt')
-        with open(features_path, 'r') as f:
-            feature_cols = [line.strip() for line in f.readlines()]
-        
-        encoders_path = Path('models/label_encoders.pkl')
-        with open(encoders_path, 'rb') as f:
-            label_encoders = pickle.load(f)
-        
-        return model, feature_cols, label_encoders
-    except Exception as e:
-        st.error(f"Error loading model: {e}")
-        return None, None, None
 
-@st.cache_data
-def load_database():
-    """Load combined train and test datasets."""
-    try:
-        test_df = pd.read_csv('data/processed/test_features.csv')
-        train_df = pd.read_csv('data/processed/train_features.csv')
-        full_df = pd.concat([train_df, test_df], ignore_index=True)
-        
-        return full_df, test_df
-    except Exception as e:
-        st.error(f"Error loading data: {e}")
-        return None, None
-
-@st.cache_data
-def get_unique_players(_df):
-    """Extract unique players with latest statistics."""
-    _df_sorted = _df.sort_index(ascending=False)
-    
-    p1_players = _df_sorted[['p1_name', 'p1_rank', 'p1_rank_points']].rename(
-        columns={'p1_name': 'name', 'p1_rank': 'rank', 'p1_rank_points': 'points'}
-    )
-    
-    p2_players = _df_sorted[['p2_name', 'p2_rank', 'p2_rank_points']].rename(
-        columns={'p2_name': 'name', 'p2_rank': 'rank', 'p2_rank_points': 'points'}
-    )
-    
-    all_players = pd.concat([p1_players, p2_players])
-    latest_players = all_players.drop_duplicates('name', keep='first').reset_index(drop=True)
-    latest_players = latest_players.sort_values('rank').reset_index(drop=True)
-    
-    return latest_players
-
-def get_player_stats(_df, player_name):
-    """Get player's latest statistics from most recent match."""
-    player_matches = _df[
-        (_df['p1_name'] == player_name) | (_df['p2_name'] == player_name)
-    ].copy()
-    
-    if len(player_matches) == 0:
-        return None
-    
-    player_matches = player_matches.sort_index(ascending=False)
-    latest_match = player_matches.iloc[0]
-    is_p1 = latest_match['p1_name'] == player_name
-    
-    stats = {
-        'name': player_name,
-        'rank': latest_match['p1_rank'] if is_p1 else latest_match['p2_rank'],
-        'rank_points': latest_match['p1_rank_points'] if is_p1 else latest_match['p2_rank_points'],
-        'recent_matches': player_matches.head(10),
-    }
-    
-    rolling_cols = [col for col in player_matches.columns if '_roll10' in col]
-    if rolling_cols:
-        prefix = 'p1_' if is_p1 else 'p2_'
-        for col in rolling_cols:
-            if col.startswith(prefix):
-                feature_name = col
-                stats[feature_name] = latest_match[col]
-    
-    return stats
-
-def get_last_10_matches(_df, player_name):
-    """Get player's last 10 matches for display."""
-    player_matches = _df[
-        (_df['p1_name'] == player_name) | (_df['p2_name'] == player_name)
-    ].copy()
-    
-    if len(player_matches) == 0:
-        return pd.DataFrame()
-    
-    if 'tourney_date' in player_matches.columns:
-        player_matches = player_matches.sort_values('tourney_date', ascending=False)
-    
-    recent_matches = player_matches.head(10).copy()
-    
-    formatted_matches = []
-    for _, match in recent_matches.iterrows():
-        is_p1 = match['p1_name'] == player_name
-        opponent = match['p2_name'] if is_p1 else match['p1_name']
-        
-        if is_p1:
-            won = match['p1_won'] == 1
-        else:
-            won = match['p1_won'] == 0
-        
-        formatted_matches.append({
-            'Date': match.get('tourney_date', 'N/A'),
-            'Tournament': match.get('tourney_name', 'N/A'),
-            'Surface': match.get('surface', 'N/A'),
-            'Opponent': opponent,
-            'Result': 'WIN' if won else 'LOSS',
-            'Score': match.get('score', 'N/A'),
-        })
-    
-    return pd.DataFrame(formatted_matches)
-
-def calculate_features(_df, p1_name, p2_name, surface='Hard', tourney_level='A'):
-    """Calculate all 53 features from latest player statistics.
-    
-    Note: Model predicts probability that P1 wins. Player order matters.
-    
-    Returns: features_dict (dict with 53 features)
-    """
-    
-    p1_stats = get_player_stats(_df, p1_name)
-    p2_stats = get_player_stats(_df, p2_name)
-    
-    if p1_stats is None or p2_stats is None:
-        return None
-    
-    p1_matches = _df[(_df['p1_name'] == p1_name) | (_df['p2_name'] == p1_name)].sort_index(ascending=False)
-    p2_matches = _df[(_df['p1_name'] == p2_name) | (_df['p2_name'] == p2_name)].sort_index(ascending=False)
-    
-    p1_latest = p1_matches.iloc[0]
-    p2_latest = p2_matches.iloc[0]
-    
-    p1_is_p1 = p1_latest['p1_name'] == p1_name
-    p2_is_p1 = p2_latest['p1_name'] == p2_name
-    
-    features = {}
-    
-    # Surface and tournament metadata
-    features['surface'] = surface
-    features['tourney_level'] = tourney_level
-    features['draw_size'] = 128
-    features['indoor'] = 0
-    
-    # P1 player features
-    features['p1_rank'] = p1_latest['p1_rank'] if p1_is_p1 else p1_latest['p2_rank']
-    features['p1_rank_points'] = p1_latest['p1_rank_points'] if p1_is_p1 else p1_latest['p2_rank_points']
-    features['p1_seed'] = p1_latest.get('p1_seed', np.nan) if p1_is_p1 else p1_latest.get('p2_seed', np.nan)
-    features['p1_entry'] = p1_latest.get('p1_entry', 'DA') if p1_is_p1 else p1_latest.get('p2_entry', 'DA')
-    features['p1_hand'] = p1_latest.get('p1_hand', 'R') if p1_is_p1 else p1_latest.get('p2_hand', 'R')
-    features['p1_ht'] = p1_latest.get('p1_ht', 180) if p1_is_p1 else p1_latest.get('p2_ht', 180)
-    features['p1_ioc'] = p1_latest.get('p1_ioc', 'ESP') if p1_is_p1 else p1_latest.get('p2_ioc', 'ESP')
-    features['p1_age'] = p1_latest.get('p1_age', 25) if p1_is_p1 else p1_latest.get('p2_age', 25)
-    
-    # P2 player features
-    features['p2_rank'] = p2_latest['p1_rank'] if p2_is_p1 else p2_latest['p2_rank']
-    features['p2_rank_points'] = p2_latest['p1_rank_points'] if p2_is_p1 else p2_latest['p2_rank_points']
-    features['p2_seed'] = p2_latest.get('p1_seed', np.nan) if p2_is_p1 else p2_latest.get('p2_seed', np.nan)
-    features['p2_entry'] = p2_latest.get('p1_entry', 'DA') if p2_is_p1 else p2_latest.get('p2_entry', 'DA')
-    features['p2_hand'] = p2_latest.get('p1_hand', 'R') if p2_is_p1 else p2_latest.get('p2_hand', 'R')
-    features['p2_ht'] = p2_latest.get('p1_ht', 180) if p2_is_p1 else p2_latest.get('p2_ht', 180)
-    features['p2_ioc'] = p2_latest.get('p1_ioc', 'ESP') if p2_is_p1 else p2_latest.get('p2_ioc', 'ESP')
-    features['p2_age'] = p2_latest.get('p1_age', 25) if p2_is_p1 else p2_latest.get('p2_age', 25)
-    
-    # Seed features
-    features['is_p1_seeded'] = not pd.isna(features['p1_seed']) and features['p1_seed'] > 0
-    features['is_p2_seeded'] = not pd.isna(features['p2_seed']) and features['p2_seed'] > 0
-    
-    p1_seed_val = features['p1_seed'] if features['is_p1_seeded'] else 999
-    p2_seed_val = features['p2_seed'] if features['is_p2_seeded'] else 999
-    features['seed_diff'] = p1_seed_val - p2_seed_val
-    
-    def get_seed_tier(seed_val):
-        if seed_val <= 4:
-            return 'Top4'
-        elif seed_val <= 8:
-            return 'Top8'
-        elif seed_val <= 16:
-            return 'Top16'
-        elif seed_val <= 32:
-            return 'Top32+'
-        else:
-            return 'Not_Seeded'
-    
-    features['p1_seed_tier'] = get_seed_tier(p1_seed_val)
-    features['p2_seed_tier'] = get_seed_tier(p2_seed_val)
-    
-    # Rolling statistics (last 10 matches)
-    for stat in ['ace', 'df', 'svpt', '1stIn', '1stWon', '2ndWon', 'SvGms', 'bpSaved', 'bpFaced']:
-        col_name = f'p1_{stat}_roll10'
-        if p1_is_p1:
-            features[col_name] = p1_latest.get(col_name, 0)
-        else:
-            col_name_p2 = f'p2_{stat}_roll10'
-            features[col_name] = p1_latest.get(col_name_p2, 0)
-    
-    for stat in ['ace', 'df', 'svpt', '1stIn', '1stWon', '2ndWon', 'SvGms', 'bpSaved', 'bpFaced']:
-        col_name = f'p2_{stat}_roll10'
-        if p2_is_p1:
-            col_name_p1 = f'p1_{stat}_roll10'
-            features[col_name] = p2_latest.get(col_name_p1, 0)
-        else:
-            features[col_name] = p2_latest.get(col_name, 0)
-    
-    # Head-to-head statistics
-    h2h_matches = _df[
-        ((_df['p1_name'] == p1_name) & (_df['p2_name'] == p2_name)) |
-        ((_df['p1_name'] == p2_name) & (_df['p2_name'] == p1_name))
-    ]
-    
-    if len(h2h_matches) > 0:
-        p1_wins = 0
-        p2_wins = 0
-        
-        for _, match in h2h_matches.iterrows():
-            if match['p1_name'] == p1_name:
-                if match['p1_won'] == 1:
-                    p1_wins += 1
-                else:
-                    p2_wins += 1
-            else:
-                if match['p1_won'] == 0:
-                    p1_wins += 1
-                else:
-                    p2_wins += 1
-        
-        features['h2h_p1_wins'] = p1_wins
-        features['h2h_p2_wins'] = p2_wins
-        features['h2h_total_matches'] = len(h2h_matches)
-        features['h2h_p1_win_rate'] = p1_wins / len(h2h_matches)
-    else:
-        features['h2h_p1_wins'] = 0
-        features['h2h_p2_wins'] = 0
-        features['h2h_total_matches'] = 0
-        features['h2h_p1_win_rate'] = 0.5
-    
-    # Encoded features (will be processed by label encoders)
-    features['tourney_level_encoded'] = features['tourney_level']
-    features['surface_encoded'] = features['surface']
-    
-    # Normalize: always P1 = better ranked player (model trained this way)
-    needs_swap = features['p2_rank'] < features['p1_rank']
-    
-    if needs_swap:
-        for key in list(features.keys()):
-            if key.startswith('p1_'):
-                p2_key = key.replace('p1_', 'p2_')
-                if p2_key in features:
-                    features[key], features[p2_key] = features[p2_key], features[key]
-        
-        if 'h2h_p1_wins' in features and 'h2h_p2_wins' in features:
-            features['h2h_p1_wins'], features['h2h_p2_wins'] = features['h2h_p2_wins'], features['h2h_p1_wins']
-    
-    return features, needs_swap
-
-# Main interface
+# Load model and database
 model, feature_cols, label_encoders = load_model()
 db_result = load_database()
 
 if db_result is None:
-    st.error("Failed to load database")
+    st.error("Не вдалося завантажити базу даних")
     st.stop()
 
 db, test_db = db_result
 
-if model is None or db is None or feature_cols is None or label_encoders is None:
-    st.error("Failed to load model or database")
-    st.stop()
+# Allow app to work even if модель відсутня (тільки історія гравця)
+model_available = all([
+    model is not None,
+    feature_cols is not None,
+    label_encoders is not None
+])
 
-# Для списку гравців використовуємо TEST 2025 (актуальні дані)
+if not model_available:
+    st.warning(
+        "Модель прогнозу не знайдена або неповна. Вкладка ‘🎯 Prediction’ тимчасово недоступна. "
+        "Запустіть тренування через `scripts/retrain_model.py` або покладіть файли моделі в `models/`."
+    )
+
+# Use TEST 2025 data for current player list
 players_df = get_unique_players(test_db)
 
-# Tabs (Сторінки)
-tab1, tab2 = st.tabs(["🎯 Prediction", "📊 Player History"])
+# Sidebar navigation (left drawer)
+options = ["📊 Player History"] + (["🎯 Prediction"] if model_available else [])
+page = st.sidebar.radio(
+    "Навігація",
+    options=options,
+    index=(1 if model_available else 0),
+    help="Перемикайте сторінки через ліве меню"
+)
 
-# ========== СТОРІНКА 1: PREDICTION ==========
-with tab1:
-    st.title("🎾 Tennis Match Prediction")
-    st.markdown("### Виберіть двох гравців для прогнозу")
+# ========== PREDICTION TAB ==========
+if page == "🎯 Prediction" and model_available:
+    st.markdown("""
+    <div style="text-align: center; padding: 2rem 0 1rem 0;">
+        <h1 style="color: var(--text); font-size: 2.5rem; margin-bottom: 0.5rem;">🎾 Tennis Match Predictor</h1>
+        <p style="color: var(--text-muted); font-size: 1.1rem;">Select two players to predict match outcome</p>
+    </div>
+    """, unsafe_allow_html=True)
+    
     st.markdown("---")
     
-    # Форма вводу
-    col1, col2 = st.columns(2)
+    # Player Selection
+    col1, col2 = st.columns(2, gap="large")
     
     with col1:
-        st.markdown("### Player 1")
+        st.markdown("#### 👤 Player 1")
         p1_name = st.selectbox(
             "Select player:",
             options=[''] + sorted(players_df['name'].tolist()),
             key='p1_name',
-            format_func=lambda x: "-- Select player --" if x == '' else x
+            format_func=lambda x: "-- Select player --" if x == '' else x,
+            label_visibility="collapsed"
         )
         
         if p1_name and p1_name != '':
@@ -370,12 +236,13 @@ with tab1:
                 """, unsafe_allow_html=True)
     
     with col2:
-        st.markdown("### Player 2")
+        st.markdown("#### 👤 Player 2")
         p2_name = st.selectbox(
             "Select player:",
             options=[''] + sorted(players_df['name'].tolist()),
             key='p2_name',
-            format_func=lambda x: "-- Select player --" if x == '' else x
+            format_func=lambda x: "-- Select player --" if x == '' else x,
+            label_visibility="collapsed"
         )
         
         if p2_name and p2_name != '':
@@ -389,22 +256,22 @@ with tab1:
                 </div>
                 """, unsafe_allow_html=True)
     
-    st.markdown("---")
+    st.markdown("<br>", unsafe_allow_html=True)
     
-    st.markdown("### Match Parameters (Optional)")
+    st.markdown("#### ⚙️ Match Parameters")
     
-    col3, col4 = st.columns(2)
+    col3, col4 = st.columns(2, gap="large")
     
     with col3:
         surface = st.selectbox(
-            "Surface:",
+            "🏟️ Court Surface",
             options=['Hard', 'Clay', 'Grass', 'Carpet'],
             index=0
         )
     
     with col4:
         tourney_level = st.selectbox(
-            "Tournament Level:",
+            "🏆 Tournament Level",
             options=['G', 'M', 'A', 'D', 'F'],
             index=2,
             format_func=lambda x: {
@@ -416,9 +283,9 @@ with tab1:
             }[x]
         )
     
-    st.markdown("---")
+    st.markdown("<br>", unsafe_allow_html=True)
     
-    if st.button("MAKE PREDICTION", type="primary"):
+    if st.button("🎯 PREDICT MATCH", type="primary"):
         if not p1_name or not p2_name or p1_name == '' or p2_name == '':
             st.error("Please select both players!")
         elif p1_name == p2_name:
@@ -435,106 +302,33 @@ with tab1:
                 else:
                     features_dict, swapped = result
                     
-                    if swapped:
-                        st.info(f"Model normalized: comparing {p2_name} vs {p1_name}")
+                    # Prepare features for prediction
+                    input_df = prepare_features_for_prediction(features_dict, feature_cols, label_encoders)
                     
-                    with st.expander("Debug: Model Input Data", expanded=False):
-                        st.write(f"**Swapped: {swapped}**")
-                        st.write("**Base Statistics (as seen by model):**")
-                        col_d1, col_d2 = st.columns(2)
-                        with col_d1:
-                            st.write(f"**P1: {p1_name}**")
-                            st.write(f"- Rank: {int(features_dict['p1_rank'])}")
-                            st.write(f"- Points: {int(features_dict['p1_rank_points'])}")
-                            st.write(f"- Age: {features_dict.get('p1_age', 'N/A')}")
-                            st.write(f"- Hand: {features_dict.get('p1_hand', 'N/A')}")
-                        with col_d2:
-                            st.write(f"**{p2_name}:**")
-                            st.write(f"- Rank: {int(features_dict['p2_rank'])}")
-                            st.write(f"- Points: {int(features_dict['p2_rank_points'])}")
-                            st.write(f"- Age: {features_dict.get('p2_age', 'N/A')}")
-                            st.write(f"- Hand: {features_dict.get('p2_hand', 'N/A')}")
-                        
-                        st.write(f"\n**Rank Info:**")
-                        st.write(f"- P1 rank: **{int(features_dict['p1_rank'])}**")
-                        st.write(f"- P2 rank: **{int(features_dict['p2_rank'])}**")
-                        st.write(f"- Better player: **{'P1' if features_dict['p1_rank'] < features_dict['p2_rank'] else 'P2' if features_dict['p2_rank'] < features_dict['p1_rank'] else 'Equal'}**")
-                        
-                        st.write(f"\n**H2H:**")
-                        st.write(f"- Total matches: {features_dict['h2h_total_matches']}")
-                        if features_dict['h2h_total_matches'] > 0:
-                            p1_display_name = original_p2_name if swapped else original_p1_name
-                            p2_display_name = original_p1_name if swapped else original_p2_name
-                            st.write(f"- {p1_display_name}: {features_dict['h2h_p1_wins']} wins ({features_dict['h2h_p1_win_rate']:.0%})")
-                            st.write(f"- {p2_display_name}: {features_dict['h2h_p2_wins']} wins")
-                        else:
-                            st.write("- No previous meetings")
-                    
-                    input_df = pd.DataFrame([features_dict])
-                    
-                    # Add missing features with defaults
-                    for col in feature_cols:
-                        if col not in input_df.columns:
-                            if 'hand' in col:
-                                input_df[col] = 'R'
-                            elif 'entry' in col:
-                                input_df[col] = 'DA'
-                            elif 'ioc' in col:
-                                input_df[col] = 'ESP'
-                            else:
-                                input_df[col] = 0
-                    
-                    # Encode categorical features using LabelEncoders
-                    categorical_features = input_df.select_dtypes(include=['object']).columns.tolist()
-                    
-                    if label_encoders is not None:
-                        for col in categorical_features:
-                            if col in feature_cols:
-                                encoder_col = col.replace('_encoded', '') if '_encoded' in col else col
-                                
-                                if encoder_col in label_encoders:
-                                    encoder = label_encoders[encoder_col]
-                                    input_df[col] = input_df[col].fillna('MISSING').astype(str)
-                                    input_df[col] = input_df[col].apply(
-                                        lambda x: x if x in encoder.classes_ else 'MISSING'
-                                    )
-                                    input_df[col] = encoder.transform(input_df[col])
-                    
-                    input_df = input_df.fillna(0)
-                    input_df = input_df[feature_cols]
-                    
-                    st.write(f"**DEBUG: ALL {len(feature_cols)} FEATURES:**")
-                    st.dataframe(input_df.T, use_container_width=True)
-                    
-                    prob_p1_wins = model.predict_proba(input_df)[0, 1]
-                    prob_p2_wins = 1 - prob_p1_wins
-                    
-                    # Invert probabilities if players were swapped
-                    if swapped:
-                        prob_p1_wins, prob_p2_wins = prob_p2_wins, prob_p1_wins
+                    # Make prediction
+                    prob_p1_wins, prob_p2_wins = predict_match(model, input_df, swapped)
                     
                     st.markdown("---")
-                    st.markdown("## Prediction Results")
+                    st.markdown("## 🎯 Prediction Results")
                     
-                    # Gauge chart для ПЕРШОГО ОБРАНОГО гравця
+                    # Gauge chart
                     fig = go.Figure(go.Indicator(
-                        mode = "gauge+number+delta",
+                        mode = "gauge+number",
                         value = prob_p1_wins * 100,
                         domain = {'x': [0, 1], 'y': [0, 1]},
-                        title = {'text': f"{original_p1_name} Win Probability", 'font': {'size': 24}},
-                        delta = {'reference': 50, 'increasing': {'color': "green"}},
+                        title = {'text': f"{original_p1_name} Win Probability", 'font': {'size': 22, 'color': '#1e293b'}},
                         gauge = {
-                            'axis': {'range': [0, 100], 'tickwidth': 1, 'tickcolor': "darkblue"},
-                            'bar': {'color': "#667eea"},
+                            'axis': {'range': [0, 100], 'tickwidth': 1, 'tickcolor': "#cbd5e1"},
+                            'bar': {'color': "#2563eb"},
                             'bgcolor': "white",
                             'borderwidth': 2,
-                            'bordercolor': "gray",
+                            'bordercolor': "#e2e8f0",
                             'steps': [
-                                {'range': [0, 50], 'color': '#ffebee'},
-                                {'range': [50, 100], 'color': '#e8eaf6'}
+                                {'range': [0, 50], 'color': '#fee2e2'},
+                                {'range': [50, 100], 'color': '#dcfce7'}
                             ],
                             'threshold': {
-                                'line': {'color': "red", 'width': 4},
+                                'line': {'color': "#64748b", 'width': 3},
                                 'thickness': 0.75,
                                 'value': 50
                             }
@@ -542,16 +336,16 @@ with tab1:
                     ))
                     
                     fig.update_layout(
-                        height=400,
+                        height=350,
                         margin=dict(l=20, r=20, t=80, b=20),
-                        paper_bgcolor="white",
-                        font={'color': "darkblue", 'family': "Arial"}
+                        paper_bgcolor="#0f172a",
+                        font={'color': "#e5e7eb", 'family': "Arial"}
                     )
                     
                     st.plotly_chart(fig, use_container_width=True)
                     
-                    # Results
-                    col_res1, col_res2 = st.columns(2)
+                    # Results Cards
+                    col_res1, col_res2 = st.columns(2, gap="large")
                     
                     original_p1_rank = features_dict['p1_rank']
                     original_p1_points = features_dict['p1_rank_points']
@@ -559,80 +353,91 @@ with tab1:
                     original_p2_points = features_dict['p2_rank_points']
                     
                     with col_res1:
+                        win_color = "#10b981" if prob_p1_wins > 0.5 else "#64748b"
                         st.markdown(f"""
-                        <div style="padding: 2rem; border-radius: 15px; 
-                             background: linear-gradient(135deg, {'#4CAF50' if prob_p1_wins > 0.5 else '#9E9E9E'}, 
-                                                                 {'#45a049' if prob_p1_wins > 0.5 else '#757575'});
-                             color: white; text-align: center;">
-                            <h2>{original_p1_name}</h2>
-                            <h1 style="font-size: 3rem; margin: 1rem 0;">{prob_p1_wins:.1%}</h1>
-                            <p style="font-size: 1.2rem;">Win Probability</p>
-                            <p style="font-size: 0.9rem; margin-top: 1rem;">
-                                Rank: {int(original_p1_rank)} | Points: {int(original_p1_points)}
-                            </p>
+                        <div style="padding: 2rem; border-radius: 16px; 
+                             background: var(--panel-alt);
+                             border: 3px solid {win_color};
+                             text-align: center;
+                             box-shadow: 0 4px 6px rgba(0,0,0,0.35);">
+                            <h2 style="color: var(--text); margin: 0;">{original_p1_name}</h2>
+                            <h1 style="font-size: 3.5rem; margin: 1rem 0; color: {win_color};">{prob_p1_wins:.1%}</h1>
+                            <p style="font-size: 1.1rem; color: var(--text-muted);">Win Probability</p>
+                            <div style="margin-top: 1.5rem; padding-top: 1rem; border-top: 2px solid var(--border);">
+                                <p style="color: var(--text-muted); margin: 0.25rem 0;"><strong>Rank:</strong> #{int(original_p1_rank)}</p>
+                                <p style="color: var(--text-muted); margin: 0.25rem 0;"><strong>Points:</strong> {int(original_p1_points):,}</p>
+                            </div>
                         </div>
                         """, unsafe_allow_html=True)
                     
                     with col_res2:
+                        win_color = "#10b981" if prob_p2_wins > 0.5 else "#64748b"
                         st.markdown(f"""
-                        <div style="padding: 2rem; border-radius: 15px; 
-                             background: linear-gradient(135deg, {'#4CAF50' if prob_p2_wins > 0.5 else '#9E9E9E'}, 
-                                                                 {'#45a049' if prob_p2_wins > 0.5 else '#757575'});
-                             color: white; text-align: center;">
-                            <h2>{original_p2_name}</h2>
-                            <h1 style="font-size: 3rem; margin: 1rem 0;">{prob_p2_wins:.1%}</h1>
-                            <p style="font-size: 1.2rem;">Win Probability</p>
-                            <p style="font-size: 0.9rem; margin-top: 1rem;">
-                                Rank: {int(original_p2_rank)} | Points: {int(original_p2_points)}
-                            </p>
+                        <div style="padding: 2rem; border-radius: 16px; 
+                             background: var(--panel-alt);
+                             border: 3px solid {win_color};
+                             text-align: center;
+                             box-shadow: 0 4px 6px rgba(0,0,0,0.35);">
+                            <h2 style="color: var(--text); margin: 0;">{original_p2_name}</h2>
+                            <h1 style="font-size: 3.5rem; margin: 1rem 0; color: {win_color};">{prob_p2_wins:.1%}</h1>
+                            <p style="font-size: 1.1rem; color: var(--text-muted);">Win Probability</p>
+                            <div style="margin-top: 1.5rem; padding-top: 1rem; border-top: 2px solid var(--border);">
+                                <p style="color: var(--text-muted); margin: 0.25rem 0;"><strong>Rank:</strong> #{int(original_p2_rank)}</p>
+                                <p style="color: var(--text-muted); margin: 0.25rem 0;"><strong>Points:</strong> {int(original_p2_points):,}</p>
+                            </div>
                         </div>
                         """, unsafe_allow_html=True)
                     
-                    
-                    st.markdown("---")
+                    st.markdown("<br>", unsafe_allow_html=True)
                     
                     favorite = original_p1_name if prob_p1_wins > prob_p2_wins else original_p2_name
                     favorite_prob = max(prob_p1_wins, prob_p2_wins)
                     
-                    confidence_level = "very confident" if favorite_prob > 0.7 else \
-                                     "confident" if favorite_prob > 0.6 else \
-                                     "moderately confident" if favorite_prob > 0.55 else \
-                                     "uncertain"
+                    confidence_level = "Very Confident" if favorite_prob > 0.7 else \
+                                     "Confident" if favorite_prob > 0.6 else \
+                                     "Moderately Confident" if favorite_prob > 0.55 else \
+                                     "Uncertain"
                     
                     st.markdown(f"""
-                    <div style="padding: 2rem; border-radius: 15px; 
-                         background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-                         color: white; text-align: center;">
-                        <h2>Model Prediction</h2>
+                    <div style="padding: 2rem; border-radius: 16px; 
+                         background: linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%);
+                         color: white; text-align: center;
+                         box-shadow: 0 8px 16px rgba(37, 99, 235, 0.2);">
+                        <h2 style="margin: 0.5rem 0;">Model Prediction</h2>
                         <h1 style="font-size: 2.5rem; margin: 1rem 0;">
-                            {favorite}
+                            🏆 {favorite}
                         </h1>
-                        <p style="font-size: 1.3rem;">
-                            Model is {confidence_level}<br/>
-                            with probability <strong>{favorite_prob:.1%}</strong>
+                        <p style="font-size: 1.2rem; opacity: 0.95;">
+                            {confidence_level} • {favorite_prob:.1%}
                         </p>
                     </div>
                     """, unsafe_allow_html=True)
                     
-                    st.markdown("---")
-                    st.markdown("### Analysis Details")
+                    st.markdown("<br>", unsafe_allow_html=True)
+                    st.markdown("### 📊 Match Analysis")
                     
                     col_det1, col_det2, col_det3 = st.columns(3)
                     
                     with col_det1:
                         rank_diff = abs(features_dict['p1_rank'] - features_dict['p2_rank'])
-                        st.metric(
-                            "Rank Difference",
-                            f"{rank_diff}",
-                            f"{'P1' if features_dict['p1_rank'] < features_dict['p2_rank'] else 'P2'} higher"
-                        )
+                        better_player = 'P1' if features_dict['p1_rank'] < features_dict['p2_rank'] else 'P2'
+                        st.markdown(f"""
+                        <div style="padding: 1.5rem; background: var(--panel-alt); border-radius: 12px; border: 2px solid var(--border); text-align: center;">
+                            <p style="color: var(--text-muted); font-size: 0.875rem; margin: 0;">Rank Difference</p>
+                            <h2 style="color: var(--text); margin: 0.5rem 0;">{rank_diff}</h2>
+                            <p style="color: var(--text-muted); font-size: 0.875rem; margin: 0;">{better_player} higher ranked</p>
+                        </div>
+                        """, unsafe_allow_html=True)
                     
                     with col_det2:
-                        st.metric(
-                            "H2H Matches",
-                            f"{features_dict['h2h_total_matches']}",
-                            f"P1: {features_dict['h2h_p1_win_rate']:.0%}" if features_dict['h2h_total_matches'] > 0 else "No data"
-                        )
+                        h2h_info = f"P1: {features_dict['h2h_p1_win_rate']:.0%}" if features_dict['h2h_total_matches'] > 0 else "No data"
+                        st.markdown(f"""
+                        <div style="padding: 1.5rem; background: var(--panel-alt); border-radius: 12px; border: 2px solid var(--border); text-align: center;">
+                            <p style="color: var(--text-muted); font-size: 0.875rem; margin: 0;">Head-to-Head</p>
+                            <h2 style="color: var(--text); margin: 0.5rem 0;">{features_dict['h2h_total_matches']}</h2>
+                            <p style="color: var(--text-muted); font-size: 0.875rem; margin: 0;">{h2h_info}</p>
+                        </div>
+                        """, unsafe_allow_html=True)
                     
                     with col_det3:
                         expected_accuracy = 73.68 if favorite_prob > 0.7 else \
@@ -640,16 +445,18 @@ with tab1:
                                           58.55 if favorite_prob > 0.55 else \
                                           52.23
                         
-                        st.metric(
-                            "Expected Accuracy",
-                            f"{expected_accuracy:.1f}%",
-                            f"{confidence_level}"
-                        )
+                        st.markdown(f"""
+                        <div style="padding: 1.5rem; background: var(--panel-alt); border-radius: 12px; border: 2px solid var(--border); text-align: center;">
+                            <p style="color: var(--text-muted); font-size: 0.875rem; margin: 0;">Expected Accuracy</p>
+                            <h2 style="color: var(--text); margin: 0.5rem 0;">{expected_accuracy:.1f}%</h2>
+                            <p style="color: var(--text-muted); font-size: 0.875rem; margin: 0;">{confidence_level}</p>
+                        </div>
+                        """, unsafe_allow_html=True)
 
 # Player History Tab
-with tab2:
-    st.title("Player Match History")
-    st.markdown("### View recent matches for any player")
+elif page == "📊 Player History":
+    st.title("📊 Player Statistics")
+    st.markdown("### View detailed player performance")
     st.markdown("---")
     
     selected_player = st.selectbox(
@@ -663,21 +470,22 @@ with tab2:
         player_stats = get_player_stats(db, selected_player)
         
         if player_stats:
-            col_info1, col_info2, col_info3 = st.columns(3)
+            # Stats Overview - Compact 3-column layout
+            col_info1, col_info2, col_info3 = st.columns(3, gap="medium")
             
             with col_info1:
                 st.markdown(f"""
-                <div class="stats-box">
-                    <h3>ATP Rank</h3>
-                    <h1 style="font-size: 3rem; margin: 0.5rem 0;">{int(player_stats['rank'])}</h1>
+                <div style="padding: 1.5rem; background: var(--panel-alt); border-radius: 12px; border: 2px solid var(--primary); text-align: center; box-shadow: 0 2px 6px rgba(0,0,0,0.35);">
+                    <p style="color: var(--text-muted); font-size: 0.875rem; font-weight: 600; margin: 0; text-transform: uppercase;">ATP Rank</p>
+                    <h1 style="font-size: 2.5rem; margin: 0.5rem 0; color: var(--text);">#{int(player_stats['rank'])}</h1>
                 </div>
                 """, unsafe_allow_html=True)
             
             with col_info2:
                 st.markdown(f"""
-                <div class="stats-box">
-                    <h3>Ranking Points</h3>
-                    <h1 style="font-size: 3rem; margin: 0.5rem 0;">{int(player_stats['rank_points'])}</h1>
+                <div style="padding: 1.5rem; background: var(--panel-alt); border-radius: 12px; border: 2px solid var(--secondary); text-align: center; box-shadow: 0 2px 6px rgba(0,0,0,0.35);">
+                    <p style="color: var(--text-muted); font-size: 0.875rem; font-weight: 600; margin: 0; text-transform: uppercase;">Ranking Points</p>
+                    <h1 style="font-size: 2.5rem; margin: 0.5rem 0; color: var(--text);">{int(player_stats['rank_points']):,}</h1>
                 </div>
                 """, unsafe_allow_html=True)
             
@@ -692,42 +500,76 @@ with tab2:
                         wins += (1 - match['p1_won'])
                 
                 win_rate = (wins / len(recent) * 100) if len(recent) > 0 else 0
+                form_color = "#22c55e" if win_rate >= 60 else "#f59e0b" if win_rate >= 40 else "#ef4444"
                 
                 st.markdown(f"""
-                <div class="stats-box">
-                    <h3>Form (10 matches)</h3>
-                    <h1 style="font-size: 3rem; margin: 0.5rem 0;">{win_rate:.0f}%</h1>
-                    <p style="margin: 0;">{int(wins)}-{len(recent)-int(wins)}</p>
+                <div style="padding: 1.5rem; background: var(--panel-alt); border-radius: 12px; border: 2px solid {form_color}; text-align: center; box-shadow: 0 2px 6px rgba(0,0,0,0.35);">
+                    <p style="color: var(--text-muted); font-size: 0.875rem; font-weight: 600; margin: 0; text-transform: uppercase;">Recent Form (L10)</p>
+                    <h1 style="font-size: 2.5rem; margin: 0.5rem 0; color: var(--text);">{win_rate:.0f}%</h1>
+                    <p style="margin: 0; color: var(--text-muted); font-weight: 600;">{int(wins)}W - {len(recent)-int(wins)}L</p>
                 </div>
                 """, unsafe_allow_html=True)
             
-            st.markdown("---")
+            st.markdown("<br>", unsafe_allow_html=True)
             
-            st.markdown("### Last 10 Matches")
+            st.markdown("### 🏆 Recent Matches")
             
             last_matches = get_last_10_matches(db, selected_player)
             
             if not last_matches.empty:
-                for idx, match in last_matches.iterrows():
-                    result_color = "#d4edda" if "WIN" in match['Result'] else "#f8d7da"
-                    
-                    st.markdown(f"""
-                    <div class="match-card" style="background-color: {result_color};">
-                        <div style="display: flex; justify-content: space-between; align-items: center;">
-                            <div>
-                                <h4 style="margin: 0;">{match['Tournament']}</h4>
-                                <p style="margin: 0.2rem 0; color: #666;">
-                                    {match['Date']} | {match['Surface']}
-                                </p>
-                            </div>
-                            <div style="text-align: right;">
-                                <h3 style="margin: 0;">{match['Result']}</h3>
-                                <p style="margin: 0.2rem 0;">vs {match['Opponent']}</p>
-                                <p style="margin: 0; font-size: 0.9rem; color: #666;">{match['Score']}</p>
-                            </div>
-                        </div>
-                    </div>
-                    """, unsafe_allow_html=True)
+                # Ensure chronological order (most recent first) using parsed timestamps
+                try:
+                    last_matches = last_matches.copy()
+                    last_matches['__ts'] = pd.to_datetime(last_matches['Date'], errors='coerce').dt.normalize()
+                    last_matches = last_matches.sort_values('__ts', ascending=False).drop(columns=['__ts'])
+                except Exception:
+                    pass
+
+                # Single-column list — restore card design with class-based HTML (maintainable)
+                for idx in range(0, len(last_matches)):
+                    match = last_matches.iloc[idx]
+                    # Safe reads with defaults
+                    tournament = str(match.get('Tournament', 'N/A') or 'N/A')
+                    date = str(match.get('Date', 'N/A') or 'N/A')
+                    surface = str(match.get('Surface', 'N/A') or 'N/A')
+                    opponent = str(match.get('Opponent', 'N/A') or 'N/A')
+                    result = str(match.get('Result', '') or '')
+                    score = str(match.get('Score', 'N/A') or 'N/A')
+                    status = str(match.get('Status', '') or '')
+
+                    is_win = ("WIN" in result)
+                    status_html = ""
+                    if status:
+                        cls = "badge " + ({
+                            "RET": "ret",
+                            "ABD": "abd",
+                            "W/O": "wo",
+                            "DEF": "def"
+                        }.get(status, ""))
+                        status_html = f"<span class='" + cls + "'>" + status + "</span>"
+
+                    card_html = (
+                        f"<div class='match-card {'win' if is_win else 'loss'}'>"
+                        f"  <div class='top'>"
+                        f"    <div style='flex:1;'>"
+                        f"      <h4>{tournament}</h4>"
+                        f"      <p class='meta'>{date} • {surface}</p>"
+                        f"    </div>"
+                        f"    <div class='right'>"
+                        f"      <span class='pill {'win' if is_win else 'loss'}'>{result}</span>"
+                        f"      {status_html}"
+                        f"    </div>"
+                        f"  </div>"
+                        f"  <div class='bottom'>"
+                        f"    <p class='opponent'>vs {opponent}</p>"
+                        f"    <p class='score'>{score}</p>"
+                        f"  </div>"
+                        f"</div>"
+                    )
+                    st.markdown(card_html, unsafe_allow_html=True)
+
+                    # Small spacer between cards
+                    st.markdown("")
             else:
                 st.warning("No match data available for this player")
         else:

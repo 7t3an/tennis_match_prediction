@@ -10,19 +10,20 @@ __pycache__/
 
 # Logs
 *.log
+logs/
 
 # IDE / Editor files
-.vscode/
 .idea/
 *.sublime-workspace
 *.sublime-project
+# Keep .vscode/ for shared tasks/settings
 
 # OS files
 .DS_Store
 Thumbs.db
 
 # Jupyter / Notebook
-.ipynb_checkpoints
+.ipynb_checkpoints/
 
 # Distribution / packaging
 *.egg
@@ -31,12 +32,25 @@ dist/
 build/
 *.whl
 
-# Streamlit local settings
-.streamlit/
+# Streamlit local settings (keep config.toml)
+# .streamlit/secrets.toml
 
 # Environment variables / secrets
 .env
+.env.*
 
 # Pip
 pip-log.txt
 pip-delete-this-directory.txt
+
+# MLflow
+mlflow.db
+mlruns/
+
+# Large processed data (regenerate via notebooks)
+# Uncomment if you want to exclude from git:
+# data/processed/*.csv
+# data/tml/*.csv
+
+# Model artifacts (regenerate via scripts/retrain_model.py)
+# models/*.pkl
