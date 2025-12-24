@@ -97,8 +97,6 @@ print(f"\nCategorical features: {len(categorical_cols)}")
 
 label_encoders = {}
 for col in categorical_cols:
-label_encoders = {}
-for col in categorical_cols:
     le = LabelEncoder()
     all_values = train_norm[col].dropna().astype(str).tolist() + ['MISSING']
     le.fit(all_values)
