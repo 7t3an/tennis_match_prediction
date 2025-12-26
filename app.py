@@ -1,7 +1,8 @@
 """Tennis Match Prediction System
 
-XGBoost-based prediction model with symmetric architecture.
-Accuracy: 65.3%, ROC-AUC: 0.64
+XGBoost-based prediction model with temporal validation.
+ROC-AUC: 0.71, Accuracy: 65.2%
+No Data Leakage - all features available before match.
 """
 
 import streamlit as st
@@ -200,6 +201,41 @@ page = st.sidebar.radio(
     help="Перемикайте сторінки через ліве меню"
 )
 
+# ========== UPDATE DATA BUTTON IN SIDEBAR ==========
+st.sidebar.markdown("---")
+st.sidebar.markdown("### ⚙️ Управління")
+
+if st.sidebar.button("🔄 Оновити дані та модель", use_container_width=True):
+    with st.spinner("Оновлення даних та перетренування моделі..."):
+        import subprocess
+        import sys
+        
+        # Run the update pipeline
+        result = subprocess.run(
+            [sys.executable, "scripts/run_pipeline.py", "--full", "--production"],
+            capture_output=True,
+            text=True,
+            cwd="/Users/vladromaniuk/tennis_match_prediction"
+        )
+        
+        if result.returncode == 0:
+            st.sidebar.success("✅ Дані оновлено, модель перетренована!")
+            st.sidebar.info("Перезавантажте сторінку (F5) для застосування змін")
+            # Clear cache to reload new data
+            st.cache_data.clear()
+            st.cache_resource.clear()
+        else:
+            st.sidebar.error(f"❌ Помилка: {result.stderr[:500]}")
+
+# Show last update info
+import os
+from datetime import datetime
+model_path = "models/xgboost_calibrated_model.pkl"
+if os.path.exists(model_path):
+    mtime = os.path.getmtime(model_path)
+    last_update = datetime.fromtimestamp(mtime).strftime("%d.%m.%Y %H:%M")
+    st.sidebar.caption(f"📅 Модель оновлена: {last_update}")
+
 # ========== PREDICTION TAB ==========
 if page == "🎯 Prediction" and model_available:
     st.markdown("""
@@ -295,12 +331,30 @@ if page == "🎯 Prediction" and model_available:
                 original_p1_name = p1_name
                 original_p2_name = p2_name
                 
+                # Get original player stats BEFORE calculate_features swaps them
+                p1_orig_stats = get_player_stats(db, p1_name)
+                p2_orig_stats = get_player_stats(db, p2_name)
+                
                 result = calculate_features(db, p1_name, p2_name, surface, tourney_level)
                 
                 if result is None or result[0] is None:
                     st.error("Failed to retrieve player data")
                 else:
                     features_dict, swapped = result
+                    
+                    # Store original H2H before potential swap
+                    # H2H in features_dict is ALREADY swapped if swapped=True
+                    # We need to get original H2H for display
+                    if swapped:
+                        # If swapped, features_dict has p1/p2 reversed
+                        # So h2h_p1_win_rate in features is for original P2
+                        orig_h2h_p1_wins = features_dict['h2h_p2_wins']
+                        orig_h2h_p2_wins = features_dict['h2h_p1_wins']
+                        orig_h2h_p1_win_rate = features_dict['h2h_p2_win_rate']
+                    else:
+                        orig_h2h_p1_wins = features_dict['h2h_p1_wins']
+                        orig_h2h_p2_wins = features_dict['h2h_p2_wins']
+                        orig_h2h_p1_win_rate = features_dict['h2h_p1_win_rate']
                     
                     # Prepare features for prediction
                     input_df = prepare_features_for_prediction(features_dict, feature_cols, label_encoders)
@@ -347,10 +401,11 @@ if page == "🎯 Prediction" and model_available:
                     # Results Cards
                     col_res1, col_res2 = st.columns(2, gap="large")
                     
-                    original_p1_rank = features_dict['p1_rank']
-                    original_p1_points = features_dict['p1_rank_points']
-                    original_p2_rank = features_dict['p2_rank']
-                    original_p2_points = features_dict['p2_rank_points']
+                    # Use original stats, NOT the swapped features_dict
+                    original_p1_rank = p1_orig_stats['rank'] if p1_orig_stats else features_dict['p1_rank']
+                    original_p1_points = p1_orig_stats['rank_points'] if p1_orig_stats else features_dict['p1_rank_points']
+                    original_p2_rank = p2_orig_stats['rank'] if p2_orig_stats else features_dict['p2_rank']
+                    original_p2_points = p2_orig_stats['rank_points'] if p2_orig_stats else features_dict['p2_rank_points']
                     
                     with col_res1:
                         win_color = "#10b981" if prob_p1_wins > 0.5 else "#64748b"
@@ -419,8 +474,8 @@ if page == "🎯 Prediction" and model_available:
                     col_det1, col_det2, col_det3 = st.columns(3)
                     
                     with col_det1:
-                        rank_diff = abs(features_dict['p1_rank'] - features_dict['p2_rank'])
-                        better_player = 'P1' if features_dict['p1_rank'] < features_dict['p2_rank'] else 'P2'
+                        rank_diff = abs(int(original_p1_rank) - int(original_p2_rank))
+                        better_player = original_p1_name if original_p1_rank < original_p2_rank else original_p2_name
                         st.markdown(f"""
                         <div style="padding: 1.5rem; background: var(--panel-alt); border-radius: 12px; border: 2px solid var(--border); text-align: center;">
                             <p style="color: var(--text-muted); font-size: 0.875rem; margin: 0;">Rank Difference</p>
@@ -430,7 +485,8 @@ if page == "🎯 Prediction" and model_available:
                         """, unsafe_allow_html=True)
                     
                     with col_det2:
-                        h2h_info = f"P1: {features_dict['h2h_p1_win_rate']:.0%}" if features_dict['h2h_total_matches'] > 0 else "No data"
+                        # Use original (un-swapped) H2H data
+                        h2h_info = f"{original_p1_name}: {orig_h2h_p1_win_rate:.0%}" if features_dict['h2h_total_matches'] > 0 else "No data"
                         st.markdown(f"""
                         <div style="padding: 1.5rem; background: var(--panel-alt); border-radius: 12px; border: 2px solid var(--border); text-align: center;">
                             <p style="color: var(--text-muted); font-size: 0.875rem; margin: 0;">Head-to-Head</p>
