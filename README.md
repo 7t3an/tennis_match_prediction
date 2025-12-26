@@ -1,104 +1,150 @@
-# 🎾 Tennis Match Prediction
+# Tennis Match Prediction System
 
-Система прогнозування результатів тенісних матчів на основі Machine Learning.
+A machine learning system for predicting ATP tennis match outcomes using XGBoost with temporal validation and probability calibration.
 
-## 📊 Особливості
+## Key Features
 
-- **Симетрична модель** - однакові прогнози незалежно від порядку гравців
-- **XGBoost** з 65.3% accuracy
-- **48 features** - rank, форма, H2H, статистика
-- **58 років даних** (1968-2025)
-- **Красивий UI** на Streamlit
+- **XGBoost Classifier** with isotonic probability calibration
+- **Temporal Validation** - no data leakage from future to past
+- **60 Engineered Features** including rolling statistics, head-to-head records, and derived performance metrics
+- **Interactive Web Interface** built with Streamlit
+- **Automated Pipeline** for data updates and model retraining
 
-## 🚀 Швидкий старт
+## Model Performance
 
-### 1. Клонувати репозиторій
+| Metric | Value |
+|--------|-------|
+| ROC-AUC | 0.71 |
+| Accuracy | 65.2% |
+| Log Loss | 0.63 |
+| F1 Score | 0.65 |
+
+### Performance by Confidence Level
+
+| Confidence | Matches | Accuracy |
+|------------|---------|----------|
+| Very High (>70%) | 1,440 | 72.15% |
+| High (60-70%) | 487 | 62.22% |
+| Medium (55-60%) | 348 | 56.03% |
+| Low (50-55%) | 593 | 53.29% |
+
+## Quick Start
+
+### Prerequisites
+
+- Python 3.11+
+- pip or conda
+
+### Installation
+
 ```bash
-git clone https://github.com/7t3an/tennis_match_prediction.git
+# Clone repository
+git clone https://github.com/yourusername/tennis_match_prediction.git
 cd tennis_match_prediction
-```
 
-### 2. Створити віртуальне середовище
-```bash
+# Create virtual environment
 python -m venv .venv
-source .venv/bin/activate  # macOS/Linux
-# або
-.venv\Scripts\activate     # Windows
-```
+source .venv/bin/activate  # Linux/macOS
+# or
+.venv\Scripts\activate  # Windows
 
-### 3. Встановити залежності
-```bash
+# Install dependencies
 pip install -r requirements.txt
 ```
 
-### 4. Запустити програму
+### Running the Application
+
 ```bash
+# Start Streamlit web interface
 streamlit run app.py
 ```
 
-Відкрийте браузер: http://localhost:8501
+Open http://localhost:8501 in your browser.
 
-## 📁 Структура проекту
+### Training the Model
+
+```bash
+# Full pipeline (data processing + training)
+python scripts/run_pipeline.py --full
+
+# Production mode (train on all data)
+python scripts/run_pipeline.py --full --production
+
+# Training only (skip data update)
+python scripts/run_pipeline.py --train
+```
+
+## Project Structure
 
 ```
 tennis_match_prediction/
-├── app.py                    # Main Streamlit app
-├── models/                   # ML моделі
-├── data/                     # Дані (train/test CSV)
-├── scripts/                  # Утиліти (retrain, fix)
-├── notebooks/                # Jupyter notebooks
-├── config/                   # Конфігурація
-├── src/                      # Вихідний код (модулі)
-├── tests/                    # Unit tests
-├── docs/                     # Документація
-└── assets/                   # Зображення
+├── app.py                      # Streamlit web application
+├── requirements.txt            # Python dependencies
+├── config/                     # Configuration settings
+│   └── settings.py
+├── data/
+│   ├── processed/              # Processed CSV files
+│   └── tml/                    # Raw ATP match data (1968-2025)
+├── docs/                       # Documentation
+│   └── THESIS.md               # Thesis documentation
+├── models/                     # Trained models and encoders
+│   ├── xgboost_calibrated_model.pkl
+│   ├── label_encoders.pkl
+│   └── feature_columns.txt
+├── notebooks/                  # Jupyter notebooks for analysis
+│   ├── Feature_Engineering.ipynb
+│   ├── Model_Training.ipynb
+│   └── main_eda.ipynb
+├── scripts/                    # Automation scripts
+│   ├── run_pipeline.py
+│   └── retrain_model.py
+├── src/                        # Source code modules
+│   ├── data/                   # Data loading and processing
+│   ├── features/               # Feature engineering
+│   ├── models/                 # Model prediction logic
+│   └── pipeline/               # ML pipeline components
+└── tests/                      # Unit tests
 ```
 
-Детально: [docs/PROJECT_STRUCTURE.md](docs/PROJECT_STRUCTURE.md)
+## Feature Engineering
 
-## 🎯 Як користуватися
+### Rank-Based Features
+- `rank_diff` - ATP ranking difference between players
+- `rank_ratio` - Ratio of player rankings
+- `rank_points_diff` - Difference in ranking points
 
-1. Вибрати двох гравців
-2. Вибрати покриття (Hard/Clay/Grass)
-3. Вибрати рівень турніру
-4. Натиснути "🎯 ЗРОБИТИ ПРОГНОЗ"
+### Rolling Statistics (10-match window)
+- Aces, double faults, serve points
+- First serve percentage and win rate
+- Break points saved/faced
 
-Система автоматично витягне статистику та покаже ймовірності перемоги.
+### Head-to-Head Features
+- Total previous encounters
+- Win rate for each player
+- Recent H2H performance
 
-## 🔧 Для розробників
+### Context Features
+- Court surface (Hard, Clay, Grass)
+- Tournament level (Grand Slam, Masters, ATP 500/250)
+- Indoor/outdoor indicator
 
-### Перетренування моделі
-```bash
-cd scripts
-python retrain_model.py
-```
+## Data Sources
 
-### Структура коду
-- `app.py` - Streamlit UI + логіка прогнозування
-- `models/` - XGBoost модель + encoders
-- `data/processed/` - Train/Test CSV
-- `scripts/` - Утиліти для тренування
+Match data sourced from [Jeff Sackmann's Tennis Abstract](https://github.com/JeffSackmann/tennis_atp), covering ATP matches from 1968 to present.
 
-## 📈 Метрики
+## Technology Stack
 
-- **Accuracy:** 65.3%
-- **ROC-AUC:** 0.64
-- **Features:** 48
-- **Dataset:** 73K train + 5.8K test
+- **Python 3.11**
+- **XGBoost** - Gradient boosting classifier
+- **Scikit-learn** - Model calibration and evaluation
+- **Pandas** - Data manipulation
+- **Streamlit** - Web interface
+- **Plotly** - Interactive visualizations
 
-## 🎓 Технології
-
-- Python 3.11
-- XGBoost
-- Streamlit
-- Pandas, NumPy
-- Scikit-learn
-- Plotly
-
-## 📝 Ліцензія
+## License
 
 MIT License
 
-## 👨‍💻 Автор
+## Author
 
-GitHub: [@7t3an](https://github.com/7t3an)
+Vladyslav Romaniuk

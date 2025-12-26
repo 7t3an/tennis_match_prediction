@@ -5,9 +5,12 @@ import pandas as pd
 import streamlit as st
 from pathlib import Path
 
+# Cache version - increment to invalidate cache after code changes
+_CACHE_VERSION = 4
 
-@st.cache_data
-def load_database() -> Optional[Tuple[pd.DataFrame, pd.DataFrame]]:
+
+@st.cache_data(show_spinner="Loading match database...")
+def load_database(_cache_version: int = _CACHE_VERSION) -> Optional[Tuple[pd.DataFrame, pd.DataFrame]]:
     """Load raw match data for Streamlit app.
     
     Uses original data from data/tml/ which has player names.
@@ -61,6 +64,9 @@ def _convert_to_p1_p2_with_names(df: pd.DataFrame) -> pd.DataFrame:
             'surface': row.get('surface', 'Hard'),
             'tourney_level': row.get('tourney_level', 'A'),
             'data_year': row.get('data_year', 2025),
+            'score': row.get('score', ''),
+            'winner_name': row.get('winner_name', ''),
+            'loser_name': row.get('loser_name', ''),
         }
         
         # Randomly assign P1/P2
