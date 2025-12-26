@@ -47,7 +47,8 @@ h2h_total_matches
 h2h_p1_win_rate
 tourney_level_encoded
 surface_encoded
+h2h_p2_win_rate
 rank_diff
 rank_ratio
-rank_points_diff
 is_p1_favorite
+rank_points_diff

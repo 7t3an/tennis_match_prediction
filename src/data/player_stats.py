@@ -284,8 +284,15 @@ def get_last_10_matches(_df, player_name):
         status, raw_score = _extract_match_status(score if score else '')
         score_display = _normalize_score_for_player(raw_score if raw_score else 'N/A', player_won=won)
 
+        # Format date from 20251110 to 2025.11.10
+        raw_date = str(match.get('tourney_date', 'N/A'))
+        if raw_date and len(raw_date) == 8 and raw_date.isdigit():
+            formatted_date = f"{raw_date[:4]}.{raw_date[4:6]}.{raw_date[6:]}"
+        else:
+            formatted_date = raw_date
+
         formatted_matches.append({
-            'Date': match.get('tourney_date', 'N/A'),
+            'Date': formatted_date,
             'Tournament': match.get('tourney_name', 'N/A'),
             'Surface': match.get('surface', 'N/A'),
             'Opponent': opponent,

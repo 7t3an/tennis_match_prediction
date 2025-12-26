@@ -1,4 +1,8 @@
-"""Feature calculation utilities for tennis match prediction."""
+"""Feature calculation utilities for tennis match prediction.
+
+Updated to match the new ML pipeline without seed features.
+Model achieves ROC-AUC: 0.71, Accuracy: 65%
+"""
 
 from typing import Dict, Optional, Tuple
 import pandas as pd
@@ -13,9 +17,10 @@ def calculate_features(
     surface: str = 'Hard',
     tourney_level: str = 'A'
 ) -> Optional[Tuple[Dict, bool]]:
-    """Calculate all 48 features from latest player statistics.
+    """Calculate all features from latest player statistics.
     
-    Note: Model predicts probability that P1 wins. Player order matters.
+    NOTE: Seed features are NOT used (they cause artificially inflated metrics).
+    Model predicts probability that P1 wins. Player order matters.
     Model is trained with P1 = better ranked player (lower rank number).
     If input order doesn't match, features will be swapped.
     
@@ -28,7 +33,7 @@ def calculate_features(
         
     Returns:
         tuple: (features_dict, needs_swap)
-            - features_dict: Dictionary with 48 features
+            - features_dict: Dictionary with all features
             - needs_swap: Boolean indicating if players were swapped for model
         None: If player data cannot be retrieved
     """
@@ -59,7 +64,6 @@ def calculate_features(
     # P1 player features
     features['p1_rank'] = p1_latest['p1_rank'] if p1_is_p1 else p1_latest['p2_rank']
     features['p1_rank_points'] = p1_latest['p1_rank_points'] if p1_is_p1 else p1_latest['p2_rank_points']
-    features['p1_seed'] = p1_latest.get('p1_seed', np.nan) if p1_is_p1 else p1_latest.get('p2_seed', np.nan)
     features['p1_entry'] = p1_latest.get('p1_entry', 'DA') if p1_is_p1 else p1_latest.get('p2_entry', 'DA')
     features['p1_hand'] = p1_latest.get('p1_hand', 'R') if p1_is_p1 else p1_latest.get('p2_hand', 'R')
     features['p1_ht'] = p1_latest.get('p1_ht', 180) if p1_is_p1 else p1_latest.get('p2_ht', 180)
@@ -69,36 +73,11 @@ def calculate_features(
     # P2 player features
     features['p2_rank'] = p2_latest['p1_rank'] if p2_is_p1 else p2_latest['p2_rank']
     features['p2_rank_points'] = p2_latest['p1_rank_points'] if p2_is_p1 else p2_latest['p2_rank_points']
-    features['p2_seed'] = p2_latest.get('p1_seed', np.nan) if p2_is_p1 else p2_latest.get('p2_seed', np.nan)
     features['p2_entry'] = p2_latest.get('p1_entry', 'DA') if p2_is_p1 else p2_latest.get('p2_entry', 'DA')
     features['p2_hand'] = p2_latest.get('p1_hand', 'R') if p2_is_p1 else p2_latest.get('p2_hand', 'R')
     features['p2_ht'] = p2_latest.get('p1_ht', 180) if p2_is_p1 else p2_latest.get('p2_ht', 180)
     features['p2_ioc'] = p2_latest.get('p1_ioc', 'ESP') if p2_is_p1 else p2_latest.get('p2_ioc', 'ESP')
     features['p2_age'] = p2_latest.get('p1_age', 25) if p2_is_p1 else p2_latest.get('p2_age', 25)
-    
-    # Seed features
-    features['is_p1_seeded'] = not pd.isna(features['p1_seed']) and features['p1_seed'] > 0
-    features['is_p2_seeded'] = not pd.isna(features['p2_seed']) and features['p2_seed'] > 0
-    
-    p1_seed_val = features['p1_seed'] if features['is_p1_seeded'] else 999
-    p2_seed_val = features['p2_seed'] if features['is_p2_seeded'] else 999
-    features['seed_diff'] = p1_seed_val - p2_seed_val
-    
-    def get_seed_tier(seed_val):
-        """Categorize seed into tiers."""
-        if seed_val <= 4:
-            return 'Top4'
-        elif seed_val <= 8:
-            return 'Top8'
-        elif seed_val <= 16:
-            return 'Top16'
-        elif seed_val <= 32:
-            return 'Top32+'
-        else:
-            return 'Not_Seeded'
-    
-    features['p1_seed_tier'] = get_seed_tier(p1_seed_val)
-    features['p2_seed_tier'] = get_seed_tier(p2_seed_val)
     
     # Rolling statistics (last 10 matches)
     for stat in ['ace', 'df', 'svpt', '1stIn', '1stWon', '2ndWon', 'SvGms', 'bpSaved', 'bpFaced']:
@@ -143,15 +122,23 @@ def calculate_features(
         features['h2h_p2_wins'] = p2_wins
         features['h2h_total_matches'] = len(h2h_matches)
         features['h2h_p1_win_rate'] = p1_wins / len(h2h_matches)
+        features['h2h_p2_win_rate'] = p2_wins / len(h2h_matches)
     else:
         features['h2h_p1_wins'] = 0
         features['h2h_p2_wins'] = 0
         features['h2h_total_matches'] = 0
         features['h2h_p1_win_rate'] = 0.5
+        features['h2h_p2_win_rate'] = 0.5
     
     # Encoded features (will be processed by label encoders)
     features['tourney_level_encoded'] = features['tourney_level']
     features['surface_encoded'] = features['surface']
+    
+    # Rank-based features
+    features['rank_diff'] = features['p1_rank'] - features['p2_rank']
+    features['rank_ratio'] = features['p1_rank'] / max(features['p2_rank'], 1)
+    features['is_p1_favorite'] = int(features['p1_rank'] < features['p2_rank'])
+    features['rank_points_diff'] = features['p1_rank_points'] - features['p2_rank_points']
     
     # Normalize: always P1 = better ranked player (model trained this way)
     # Lower rank number = better rank (e.g., rank 1 > rank 50)
@@ -168,5 +155,13 @@ def calculate_features(
         # Swap H2H stats
         if 'h2h_p1_wins' in features and 'h2h_p2_wins' in features:
             features['h2h_p1_wins'], features['h2h_p2_wins'] = features['h2h_p2_wins'], features['h2h_p1_wins']
+        if 'h2h_p1_win_rate' in features and 'h2h_p2_win_rate' in features:
+            features['h2h_p1_win_rate'], features['h2h_p2_win_rate'] = features['h2h_p2_win_rate'], features['h2h_p1_win_rate']
+        
+        # Recalculate rank features after swap
+        features['rank_diff'] = features['p1_rank'] - features['p2_rank']
+        features['rank_ratio'] = features['p1_rank'] / max(features['p2_rank'], 1)
+        features['is_p1_favorite'] = int(features['p1_rank'] < features['p2_rank'])
+        features['rank_points_diff'] = features['p1_rank_points'] - features['p2_rank_points']
     
     return features, needs_swap
