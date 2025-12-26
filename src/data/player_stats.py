@@ -6,9 +6,12 @@ import streamlit as st
 import re
 import unicodedata
 
+# Cache version - increment to invalidate cache after code changes
+_CACHE_VERSION = 3
 
-@st.cache_data
-def _load_tml_matches():
+
+@st.cache_data(show_spinner=False)
+def _load_tml_matches(_cache_version: int = _CACHE_VERSION):
     """Load processed matches with scores for lookup (train + latest test).
     Uses: data/processed/train_2012_2024.csv and data/processed/test_2025.csv
     Returns a DataFrame with columns: tourney_id, tourney_name, surface, tourney_date, winner_name, loser_name, score.
@@ -268,18 +271,21 @@ def get_last_10_matches(_df, player_name):
         else:
             won = match['p1_won'] == 0
         
-        # Try to lookup score from raw TML
-        tourney_id = match.get('tourney_id', None)
-        tourney_name = match.get('tourney_name', None)
-        feat_date = match.get('tourney_date', None)
-        score = _lookup_score(
-            tml_df,
-            tourney_id=tourney_id,
-            tourney_name=tourney_name,
-            feat_date=feat_date,
-            winner_name=player_name if won else opponent,
-            loser_name=opponent if won else player_name,
-        )
+        # Get score directly from DataFrame if available, otherwise lookup
+        score = match.get('score', None)
+        if not score or pd.isna(score) or str(score).strip() == '':
+            # Fallback: Try to lookup score from raw TML
+            tourney_id = match.get('tourney_id', None)
+            tourney_name = match.get('tourney_name', None)
+            feat_date = match.get('tourney_date', None)
+            score = _lookup_score(
+                tml_df,
+                tourney_id=tourney_id,
+                tourney_name=tourney_name,
+                feat_date=feat_date,
+                winner_name=player_name if won else opponent,
+                loser_name=opponent if won else player_name,
+            )
 
         status, raw_score = _extract_match_status(score if score else '')
         score_display = _normalize_score_for_player(raw_score if raw_score else 'N/A', player_won=won)
