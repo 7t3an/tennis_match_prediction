@@ -96,20 +96,47 @@ def prepare_features_for_prediction(
 def predict_match(
     model,
     features_df: pd.DataFrame,
-    was_swapped: bool = False
+    was_swapped: bool = False,
+    temperature: float = 1.262,
+    min_prob: float = 0.05,
+    max_prob: float = 0.95
 ) -> Tuple[float, float]:
     """Predict match outcome using trained model.
+    
+    Applies temperature scaling to improve calibration and reduce
+    overconfidence in predictions. Clips extreme probabilities to
+    ensure no prediction is 0% or 100% (every player has a chance).
     
     Args:
         model: Trained XGBoost calibrated classifier
         features_df: Prepared features DataFrame
         was_swapped: Boolean indicating if player order was swapped
+        temperature: Temperature for scaling (>1 softens predictions)
+        min_prob: Minimum probability (default 2%)
+        max_prob: Maximum probability (default 98%)
         
     Returns:
         tuple: (prob_p1_wins, prob_p2_wins)
             Probabilities for original P1 and P2 players
     """
+    import numpy as np
+    
     prob_p1_wins = model.predict_proba(features_df)[0, 1]
+    
+    # Clip extreme probabilities first (before temperature scaling)
+    # Every player should have at least some chance
+    prob_p1_wins = np.clip(prob_p1_wins, min_prob, max_prob)
+    
+    # Apply temperature scaling to reduce overconfidence
+    # Higher temperature = softer predictions (closer to 50%)
+    if temperature != 1.0:
+        logit = np.log(prob_p1_wins / (1 - prob_p1_wins))
+        scaled_logit = logit / temperature
+        prob_p1_wins = 1 / (1 + np.exp(-scaled_logit))
+    
+    # Clip again after scaling (safety)
+    prob_p1_wins = np.clip(prob_p1_wins, min_prob, max_prob)
+    
     prob_p2_wins = 1 - prob_p1_wins
     
     # Invert probabilities if players were swapped for model normalization
@@ -117,3 +144,4 @@ def predict_match(
         prob_p1_wins, prob_p2_wins = prob_p2_wins, prob_p1_wins
     
     return prob_p1_wins, prob_p2_wins
+
