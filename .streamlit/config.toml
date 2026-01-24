@@ -1,5 +1,0 @@
-[server]
-headless = true
-port = 8501
-fileWatcherType = "none"
-address = "localhost"

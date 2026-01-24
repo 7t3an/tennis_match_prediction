@@ -81,9 +81,9 @@ class ModelTrainer:
         - Missing value handling
         - Feature/target separation
         """
-        logger.info("=" * 80)
+        logger.info("")
         logger.info("PREPARING DATA FOR MODELING")
-        logger.info("=" * 80)
+        logger.info("")
         
         # Identify feature columns (exclude target)
         self.feature_cols = [col for col in df_train.columns if col != target_col]
@@ -145,9 +145,9 @@ class ModelTrainer:
         
         Uses TimeSeriesSplit to ensure no future data leaks into past.
         """
-        logger.info("\n" + "=" * 80)
+        logger.info("\n" + "")
         logger.info("TEMPORAL CROSS-VALIDATION")
-        logger.info("=" * 80)
+        logger.info("")
         
         tscv = TimeSeriesSplit(n_splits=n_splits)
         
@@ -211,9 +211,9 @@ class ModelTrainer:
             y_val: Validation target
             params: XGBoost parameters (uses defaults if None)
         """
-        logger.info("\n" + "=" * 80)
+        logger.info("\n" + "")
         logger.info("TRAINING XGBOOST MODEL")
-        logger.info("=" * 80)
+        logger.info("")
         
         if params is None:
             params = self.DEFAULT_XGB_PARAMS.copy()
@@ -250,9 +250,9 @@ class ModelTrainer:
         Important for betting applications where accurate
         probability estimates are crucial.
         """
-        logger.info("\n" + "=" * 80)
+        logger.info("\n" + "")
         logger.info("PROBABILITY CALIBRATION")
-        logger.info("=" * 80)
+        logger.info("")
         
         if self.model is None:
             raise ValueError("Model must be trained before calibration!")
@@ -283,9 +283,9 @@ class ModelTrainer:
         - ROC-AUC, Log Loss, Brier Score
         - Confusion matrix
         """
-        logger.info("\n" + "=" * 80)
+        logger.info("\n" + "")
         logger.info("MODEL EVALUATION")
-        logger.info("=" * 80)
+        logger.info("")
         
         model = self.calibrated_model if (use_calibrated and self.calibrated_model) else self.model
         
@@ -393,9 +393,9 @@ class ModelTrainer:
         - Label encoders
         - Model metrics
         """
-        logger.info("\n" + "=" * 80)
+        logger.info("\n" + "")
         logger.info("SAVING MODEL")
-        logger.info("=" * 80)
+        logger.info("")
         
         model_path = Path(model_dir)
         model_path.mkdir(exist_ok=True, parents=True)

@@ -130,9 +130,12 @@ def calculate_features(
         features['h2h_p1_win_rate'] = 0.5
         features['h2h_p2_win_rate'] = 0.5
     
-    # Encoded features (will be processed by label encoders)
-    features['tourney_level_encoded'] = features['tourney_level']
-    features['surface_encoded'] = features['surface']
+    # Encoded features - use numeric values for model
+    surface_map = {'Hard': 3, 'Clay': 2, 'Grass': 1, 'Carpet': 0}
+    tourney_level_map = {'G': 4, 'M': 3, 'A': 2, 'D': 1, 'F': 3, '250': 2, '500': 2}
+    
+    features['surface_encoded'] = surface_map.get(surface, 3)
+    features['tourney_level_encoded'] = tourney_level_map.get(tourney_level, 2)
     
     # Rank-based features
     features['rank_diff'] = features['p1_rank'] - features['p2_rank']

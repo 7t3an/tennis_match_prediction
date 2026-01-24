@@ -72,9 +72,7 @@ class FeatureEngineer:
         Returns:
             DataFrame in P1/P2 format with all features
         """
-        logger.info("=" * 80)
-        logger.info("FEATURE ENGINEERING (NO DATA LEAKAGE)")
-        logger.info("=" * 80)
+        logger.info("FEATURE ENGINEERING")
         
         # Make copy and ensure sorted by date
         df = df.copy()
@@ -108,15 +106,13 @@ class FeatureEngineer:
         # Step 9: Final cleanup
         df_features = self._cleanup_features(df_features)
         
-        logger.info("=" * 80)
         logger.info(f"Feature engineering complete: {len(df_features.columns)} columns")
-        logger.info("=" * 80)
         
         return df_features
     
     def _create_seed_features(self, df: pd.DataFrame) -> pd.DataFrame:
         """Create seed-based features."""
-        logger.info("\n📌 Creating SEED features...")
+        logger.info("Creating SEED features...")
         
         # Binary indicators
         df['is_winner_seeded'] = df['winner_seed'].notna().astype(int)
@@ -141,7 +137,7 @@ class FeatureEngineer:
         df['winner_seed_tier'] = df['winner_seed'].apply(get_seed_tier)
         df['loser_seed_tier'] = df['loser_seed'].apply(get_seed_tier)
         
-        logger.info(f"  ✓ Created: is_seeded, seed_diff, seed_tier")
+        logger.info(f"  Created: is_seeded, seed_diff, seed_tier")
         return df
     
     def _create_rolling_features(self, df: pd.DataFrame) -> pd.DataFrame:
@@ -154,7 +150,7 @@ class FeatureEngineer:
         3. Use shift(1) - exclude current match
         4. Rolling mean on PAST matches only
         """
-        logger.info("\n📊 Creating ROLLING features (NO LEAKAGE)...")
+        logger.info("Creating ROLLING features (NO LEAKAGE)...")
         logger.info(f"   Window: {self.ROLLING_WINDOW}, Min periods: {self.MIN_PERIODS}")
         
         # Create long-format: each player's match as separate row
@@ -225,7 +221,7 @@ class FeatureEngineer:
         
         # Report coverage
         w_roll_filled = df['w_ace_roll10'].notna().sum() if 'w_ace_roll10' in df.columns else 0
-        logger.info(f"   ✓ Rolling stats coverage: {w_roll_filled:,} / {len(df):,} ({w_roll_filled/len(df)*100:.1f}%)")
+        logger.info(f"   Rolling stats coverage: {w_roll_filled:,} / {len(df):,} ({w_roll_filled/len(df)*100:.1f}%)")
         
         return df
     
@@ -235,7 +231,7 @@ class FeatureEngineer:
         
         NO DATA LEAKAGE: Only use PAST H2H results!
         """
-        logger.info("\n🎾 Creating H2H features (NO LEAKAGE)...")
+        logger.info("Creating H2H features (NO LEAKAGE)...")
         
         # Create canonical H2H key (alphabetically sorted)
         def create_h2h_key(row):
@@ -285,13 +281,13 @@ class FeatureEngineer:
             h2h_history[h2h_key][winner_id] += 1
         
         matches_with_h2h = (df['h2h_total_matches'] > 0).sum()
-        logger.info(f"   ✓ Matches with H2H history: {matches_with_h2h:,} ({matches_with_h2h/len(df)*100:.1f}%)")
+        logger.info(f"   Matches with H2H history: {matches_with_h2h:,} ({matches_with_h2h/len(df)*100:.1f}%)")
         
         return df
     
     def _create_context_features(self, df: pd.DataFrame) -> pd.DataFrame:
         """Create tournament and surface context features."""
-        logger.info("\n🏟️ Creating CONTEXT features...")
+        logger.info("Creating CONTEXT features...")
         
         # Tournament level encoding
         tourney_level_map = {
@@ -314,8 +310,8 @@ class FeatureEngineer:
         
         df['surface_encoded'] = df['surface'].map(surface_map).fillna(3)
         
-        logger.info(f"   ✓ Tournament level encoded: {df['tourney_level_encoded'].value_counts().to_dict()}")
-        logger.info(f"   ✓ Surface encoded: {df['surface_encoded'].value_counts().to_dict()}")
+        logger.info(f"   Tournament level encoded: {df['tourney_level_encoded'].value_counts().to_dict()}")
+        logger.info(f"   Surface encoded: {df['surface_encoded'].value_counts().to_dict()}")
         
         return df
     
@@ -331,7 +327,7 @@ class FeatureEngineer:
             df: DataFrame in winner/loser format
             duplicate: If True, create both versions (ONLY for data augmentation, NOT for CV!)
         """
-        logger.info("\n🔄 Converting to P1/P2 format...")
+        logger.info("Converting to P1/P2 format...")
         logger.info(f"   Duplicate mode: {duplicate}")
         
         # Set random seed for reproducibility
@@ -441,8 +437,8 @@ class FeatureEngineer:
         if 'tourney_date' in df_combined.columns:
             df_combined = df_combined.sort_values('tourney_date').reset_index(drop=True)
         
-        logger.info(f"   ✓ Created {len(df_combined):,} rows (same as input: {len(df):,})")
-        logger.info(f"   ✓ Target balance: P1 won {df_combined['p1_won'].mean()*100:.1f}%")
+        logger.info(f"   Created {len(df_combined):,} rows (same as input: {len(df):,})")
+        logger.info(f"   Target balance: P1 won {df_combined['p1_won'].mean()*100:.1f}%")
         
         return df_combined
     
@@ -452,7 +448,7 @@ class FeatureEngineer:
         
         These are created AFTER P1/P2 conversion to avoid leakage!
         """
-        logger.info("\n📈 Creating RANK features...")
+        logger.info("Creating RANK features...")
         
         # Rank difference (negative = P1 is better ranked)
         df['rank_diff'] = df['p1_rank'] - df['p2_rank']
@@ -476,7 +472,7 @@ class FeatureEngineer:
         if 'h2h_p1_win_rate' in df.columns:
             df['h2h_p2_win_rate'] = 1 - df['h2h_p1_win_rate']
         
-        logger.info(f"   ✓ Created: rank_diff, rank_ratio, is_p1_favorite, rank_points_diff, rank_points_ratio, log_rank_ratio")
+        logger.info(f"   Created: rank_diff, rank_ratio, is_p1_favorite, rank_points_diff, rank_points_ratio, log_rank_ratio")
         
         return df
     
@@ -486,7 +482,7 @@ class FeatureEngineer:
         
         These capture player's current form and confidence.
         """
-        logger.info("\n⚡ Creating FORM features...")
+        logger.info("Creating FORM features...")
         
         # Service dominance: ratio of 1st serve wins
         for prefix in ['p1', 'p2']:
@@ -520,7 +516,7 @@ class FeatureEngineer:
         if 'p1_bp_save_rate' in df.columns and 'p2_bp_save_rate' in df.columns:
             df['bp_save_rate_diff'] = df['p1_bp_save_rate'] - df['p2_bp_save_rate']
         
-        logger.info(f"   ✓ Created form features")
+        logger.info(f"   Created form features")
         
         return df
     
@@ -528,7 +524,7 @@ class FeatureEngineer:
         """
         Create experience and physical features.
         """
-        logger.info("\n🎓 Creating EXPERIENCE features...")
+        logger.info("Creating EXPERIENCE features...")
         
         # Age difference
         if 'p1_age' in df.columns and 'p2_age' in df.columns:
@@ -538,7 +534,7 @@ class FeatureEngineer:
         if 'p1_ht' in df.columns and 'p2_ht' in df.columns:
             df['height_diff'] = df['p1_ht'] - df['p2_ht']
         
-        logger.info(f"   ✓ Created: age_diff, height_diff")
+        logger.info(f"   Created: age_diff, height_diff")
         
         return df
     
@@ -556,7 +552,7 @@ class FeatureEngineer:
         OPTIONALLY REMOVE (if use_seed_features=False):
         - All seed-related features (they cause artificially high AUC)
         """
-        logger.info("\n🧹 Final cleanup (removing potential leakage columns)...")
+        logger.info("Final cleanup (removing potential leakage columns)...")
         
         # Columns to drop
         drop_cols = [
@@ -584,7 +580,7 @@ class FeatureEngineer:
                 'is_p1_seeded', 'is_p2_seeded'
             ]
             drop_cols.extend(seed_cols_to_drop)
-            logger.info("   ⚠️ Removing seed features (use_seed_features=False)")
+            logger.info("   Removing seed features (use_seed_features=False)")
         
         # Find current match statistics to drop
         for prefix in ['p1_', 'p2_']:
@@ -597,8 +593,8 @@ class FeatureEngineer:
         cols_to_drop = [col for col in drop_cols if col in df.columns]
         df = df.drop(columns=cols_to_drop, errors='ignore')
         
-        logger.info(f"   ✓ Dropped {len(cols_to_drop)} columns")
-        logger.info(f"   ✓ Remaining: {len(df.columns)} columns")
+        logger.info(f"   Dropped {len(cols_to_drop)} columns")
+        logger.info(f"   Remaining: {len(df.columns)} columns")
         
         # List final features
         self.feature_cols = [col for col in df.columns if col != 'p1_won']
@@ -618,7 +614,7 @@ class FeatureEngineer:
         2. No current match statistics
         3. No result columns
         """
-        logger.info("\n🔍 Validating NO DATA LEAKAGE...")
+        logger.info("Validating NO DATA LEAKAGE...")
         
         issues = []
         
@@ -642,12 +638,12 @@ class FeatureEngineer:
                     issues.append(f"Non-rolling stat found: {col}")
         
         if issues:
-            logger.error("❌ DATA LEAKAGE DETECTED!")
+            logger.error("DATA LEAKAGE DETECTED!")
             for issue in issues:
                 logger.error(f"   - {issue}")
             return False
         else:
-            logger.info("   ✓ No data leakage detected!")
+            logger.info("   No data leakage detected!")
             return True
 
 
@@ -665,6 +661,6 @@ if __name__ == '__main__':
     # Validate
     engineer.validate_no_leakage(df_features)
     
-    print("\nFinal feature list:")
+    print("Final feature list:")
     for i, feat in enumerate(engineer.get_feature_list(), 1):
         print(f"  {i}. {feat}")

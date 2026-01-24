@@ -25,12 +25,12 @@ class DataProcessor:
     3. Consistent handling of missing values
     """
     
-    def __init__(self, data_path: str = 'data/tml'):
+    def __init__(self, data_path: str = 'tml-data'):
         self.data_path = Path(data_path)
         self.df_raw = None
         self.df_processed = None
         
-    def load_data(self, start_year: int = 2012, end_year: int = 2025) -> pd.DataFrame:
+    def load_data(self, start_year: int = 2012, end_year: int = 2026) -> pd.DataFrame:
         """
         Load tennis match data from yearly CSV files.
         
@@ -57,7 +57,7 @@ class DataProcessor:
                 logger.warning(f"  {year}: file not found")
                 
         if not all_matches:
-            raise ValueError("No data files found!")
+            raise ValueError(f"No data files found in {self.data_path}!")
             
         self.df_raw = pd.concat(all_matches, ignore_index=True)
         logger.info(f"Total: {len(self.df_raw):,} matches loaded")

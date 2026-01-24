@@ -42,7 +42,7 @@ class TennisPredictionPipeline:
     
     def __init__(
         self,
-        data_path: str = 'data/tml',
+        data_path: str = 'tml-data',
         output_path: str = 'data/processed',
         model_path: str = 'models'
     ):
@@ -65,8 +65,8 @@ class TennisPredictionPipeline:
     def run(
         self,
         start_year: int = 2012,
-        end_year: int = 2025,
-        test_year: int = 2025,
+        end_year: int = 2026,
+        test_year: int = 2026,
         run_cv: bool = True,
         save_data: bool = True,
         save_model: bool = True
@@ -85,25 +85,21 @@ class TennisPredictionPipeline:
         Returns:
             Dictionary with metrics and model info
         """
-        logger.info("=" * 80)
+        logger.info("="*80)
         logger.info("TENNIS MATCH PREDICTION PIPELINE")
-        logger.info(f"Started at: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
-        logger.info("=" * 80)
+        logger.info(f"Started: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+        logger.info("="*80)
         
         results = {}
         
         # Step 1: Load and clean data
-        logger.info("\n" + "=" * 80)
-        logger.info("STEP 1: DATA LOADING & CLEANING")
-        logger.info("=" * 80)
+        logger.info("\nSTEP 1: Data Loading & Cleaning")
         
         self.df_raw = self.data_processor.load_data(start_year, end_year)
         self.df_processed = self.data_processor.clean_data()
         
         # Step 2: Create features
-        logger.info("\n" + "=" * 80)
-        logger.info("STEP 2: FEATURE ENGINEERING")
-        logger.info("=" * 80)
+        logger.info("\nSTEP 2: Feature Engineering")
         
         self.df_features = self.feature_engineer.create_all_features(self.df_processed)
         
@@ -114,9 +110,7 @@ class TennisPredictionPipeline:
             return {'error': 'data_leakage'}
         
         # Step 3: Temporal split
-        logger.info("\n" + "=" * 80)
-        logger.info("STEP 3: TEMPORAL SPLIT")
-        logger.info("=" * 80)
+        logger.info("\nSTEP 3: Temporal Split")
         
         # Split based on original year (before duplication)
         self.df_train = self.df_features[
@@ -151,9 +145,7 @@ class TennisPredictionPipeline:
             self._save_processed_data()
         
         # Step 4: Prepare data for modeling
-        logger.info("\n" + "=" * 80)
-        logger.info("STEP 4: DATA PREPARATION")
-        logger.info("=" * 80)
+        logger.info("\nSTEP 4: Data Preparation")
         
         X_train, y_train, X_test, y_test = self.model_trainer.prepare_data(
             self.df_train, self.df_test, target_col='p1_won'
@@ -161,31 +153,23 @@ class TennisPredictionPipeline:
         
         # Step 5: Cross-validation (optional)
         if run_cv:
-            logger.info("\n" + "=" * 80)
-            logger.info("STEP 5: CROSS-VALIDATION")
-            logger.info("=" * 80)
+            logger.info("\nSTEP 5: Cross-Validation")
             
             cv_metrics = self.model_trainer.temporal_cross_validation(X_train, y_train)
             results['cv_metrics'] = cv_metrics
         
         # Step 6: Train final model
-        logger.info("\n" + "=" * 80)
-        logger.info("STEP 6: FINAL MODEL TRAINING")
-        logger.info("=" * 80)
+        logger.info("\nSTEP 6: Model Training")
         
         self.model_trainer.train(X_train, y_train, X_test, y_test)
         
         # Step 7: Calibrate probabilities
-        logger.info("\n" + "=" * 80)
-        logger.info("STEP 7: PROBABILITY CALIBRATION")
-        logger.info("=" * 80)
+        logger.info("\nSTEP 7: Probability Calibration")
         
         self.model_trainer.calibrate(X_train, y_train)
         
         # Step 8: Evaluate
-        logger.info("\n" + "=" * 80)
-        logger.info("STEP 8: EVALUATION")
-        logger.info("=" * 80)
+        logger.info("\nSTEP 8: Evaluation")
         
         test_metrics = self.model_trainer.evaluate(X_test, y_test)
         results['test_metrics'] = test_metrics
@@ -196,38 +180,20 @@ class TennisPredictionPipeline:
         
         # Step 9: Save model
         if save_model:
-            logger.info("\n" + "=" * 80)
-            logger.info("STEP 9: SAVE MODEL")
-            logger.info("=" * 80)
+            logger.info("\nSTEP 9: Save Model")
             
             self.model_trainer.save_model(str(self.model_path))
+            self._save_metrics(test_metrics, start_year, end_year, test_year)
         
         # Summary
-        logger.info("\n" + "=" * 80)
+        logger.info("\n" + "="*80)
         logger.info("PIPELINE COMPLETE")
-        logger.info("=" * 80)
-        logger.info(f"\nFinal Results:")
+        logger.info("="*80)
+        logger.info(f"\nResults:")
         logger.info(f"  ROC-AUC:   {test_metrics['roc_auc']:.4f}")
         logger.info(f"  Accuracy:  {test_metrics['accuracy']:.4f}")
         logger.info(f"  Log Loss:  {test_metrics['log_loss']:.4f}")
         logger.info(f"  F1-Score:  {test_metrics['f1']:.4f}")
-        
-        # Check if targets met
-        logger.info("\n📊 TARGET CHECK:")
-        if test_metrics['roc_auc'] >= 0.70:
-            logger.info("  ✅ ROC-AUC >= 0.70 - TARGET MET!")
-        else:
-            logger.info(f"  ⚠️ ROC-AUC = {test_metrics['roc_auc']:.4f} (target: 0.70)")
-        
-        if test_metrics['recall'] >= 0.55:
-            logger.info("  ✅ Recall >= 0.55 - TARGET MET!")
-        else:
-            logger.info(f"  ⚠️ Recall = {test_metrics['recall']:.4f} (target: 0.55)")
-        
-        if test_metrics['log_loss'] <= 0.58:
-            logger.info("  ✅ Log Loss <= 0.58 - TARGET MET!")
-        else:
-            logger.info(f"  ⚠️ Log Loss = {test_metrics['log_loss']:.4f} (target: 0.58)")
         
         return results
     
@@ -244,6 +210,50 @@ class TennisPredictionPipeline:
         logger.info(f"Saved: {train_path}")
         logger.info(f"Saved: {test_path}")
     
+    def _save_metrics(self, metrics: Dict, start_year: int, end_year: int, test_year: int):
+        """Save training metrics to file."""
+        self.model_path.mkdir(exist_ok=True, parents=True)
+        
+        # Save to text file (for backward compatibility)
+        metrics_txt_path = self.model_path / 'model_metrics.txt'
+        with open(metrics_txt_path, 'w') as f:
+            f.write(f"Model Metrics (Updated: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')})\\n")
+            f.write(f"Training Period: {start_year}-{end_year}\\n")
+            f.write(f"Test Year: {test_year}\\n")
+            f.write(f"\\nPerformance:\\n")
+            f.write(f"  ROC-AUC:   {metrics['roc_auc']:.4f}\\n")
+            f.write(f"  Accuracy:  {metrics['accuracy']:.4f}\\n")
+            f.write(f"  Log Loss:  {metrics['log_loss']:.4f}\\n")
+            f.write(f"  F1-Score:  {metrics['f1']:.4f}\\n")
+            f.write(f"  Precision: {metrics['precision']:.4f}\\n")
+            f.write(f"  Recall:    {metrics['recall']:.4f}\\n")
+        
+        # Save to CSV for history tracking
+        metrics_csv_path = self.model_path / 'metrics_history.csv'
+        
+        # Create new row
+        new_row = pd.DataFrame([{
+            'timestamp': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
+            'train_period': f"{start_year}-{end_year}",
+            'test_year': test_year,
+            'roc_auc': metrics['roc_auc'],
+            'accuracy': metrics['accuracy'],
+            'log_loss': metrics['log_loss'],
+            'f1_score': metrics['f1'],
+            'precision': metrics['precision'],
+            'recall': metrics['recall']
+        }])
+        
+        # Append to existing or create new
+        if metrics_csv_path.exists():
+            existing = pd.read_csv(metrics_csv_path)
+            combined = pd.concat([existing, new_row], ignore_index=True)
+            combined.to_csv(metrics_csv_path, index=False)
+        else:
+            new_row.to_csv(metrics_csv_path, index=False)
+        
+        logger.info(f"Saved metrics: {metrics_txt_path}")
+        logger.info(f"Updated history: {metrics_csv_path}")
     def retrain_on_full_data(self) -> Dict:
         """
         Retrain model on complete dataset (train + test).
@@ -253,7 +263,6 @@ class TennisPredictionPipeline:
         """
         logger.info("\n" + "=" * 80)
         logger.info("RETRAINING ON FULL DATA")
-        logger.info("=" * 80)
         
         # Combine train and test
         df_full = pd.concat([self.df_train, self.df_test], ignore_index=True)
@@ -273,8 +282,16 @@ class TennisPredictionPipeline:
         
         X_full = X_full.fillna(0)
         
-        # Retrain
-        self.model_trainer.train(X_full, y_full)
+        # Split for early stopping (90/10)
+        from sklearn.model_selection import train_test_split
+        X_train, X_val, y_train, y_val = train_test_split(
+            X_full, y_full, test_size=0.1, random_state=42, stratify=y_full
+        )
+        
+        # Retrain with validation
+        self.model_trainer.train(X_train, y_train, X_val, y_val)
+        
+        # Calibrate on full data
         self.model_trainer.calibrate(X_full, y_full)
         
         # Save updated model
@@ -304,14 +321,12 @@ class TennisPredictionPipeline:
         logger.info("\n" + "=" * 80)
         logger.info("PRODUCTION PIPELINE (TRAIN ON ALL DATA)")
         logger.info(f"Period: {start_year}-{end_year}")
-        logger.info("=" * 80)
         
         results = {}
         
         # Step 1: Load ALL data
         logger.info("\n" + "=" * 80)
         logger.info("STEP 1: DATA LOADING (ALL DATA)")
-        logger.info("=" * 80)
         
         self.df_raw = self.data_processor.load_data(start_year, end_year)
         self.df_processed = self.data_processor.clean_data(self.df_raw)
@@ -319,7 +334,6 @@ class TennisPredictionPipeline:
         # Step 2: Feature engineering on ALL data
         logger.info("\n" + "=" * 80)
         logger.info("STEP 2: FEATURE ENGINEERING")
-        logger.info("=" * 80)
         
         df_features = self.feature_engineer.create_all_features(self.df_processed)
         
@@ -335,7 +349,6 @@ class TennisPredictionPipeline:
         # Step 3: Prepare data
         logger.info("\n" + "=" * 80)
         logger.info("STEP 3: DATA PREPARATION")
-        logger.info("=" * 80)
         
         target_col = 'p1_won'
         feature_cols = [col for col in df_features.columns if col != target_col]
@@ -365,7 +378,6 @@ class TennisPredictionPipeline:
         # Step 4: Train model
         logger.info("\n" + "=" * 80)
         logger.info("STEP 4: MODEL TRAINING")
-        logger.info("=" * 80)
         
         # Use 10% of data as validation for early stopping
         from sklearn.model_selection import train_test_split
@@ -378,14 +390,12 @@ class TennisPredictionPipeline:
         # Step 5: Calibrate on full data
         logger.info("\n" + "=" * 80)
         logger.info("STEP 5: PROBABILITY CALIBRATION")
-        logger.info("=" * 80)
         
         self.model_trainer.calibrate(X, y)
         
         # Step 6: Save model
         logger.info("\n" + "=" * 80)
         logger.info("STEP 6: SAVE MODEL")
-        logger.info("=" * 80)
         
         self.model_trainer.save_model(str(self.model_path))
         
@@ -395,7 +405,6 @@ class TennisPredictionPipeline:
         
         logger.info("\n" + "=" * 80)
         logger.info("PRODUCTION PIPELINE COMPLETE")
-        logger.info("=" * 80)
         logger.info(f"Model trained on {len(X):,} samples")
         logger.info(f"Model saved to: {self.model_path}")
         

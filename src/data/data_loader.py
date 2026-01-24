@@ -13,17 +13,17 @@ _CACHE_VERSION = 4
 def load_database(_cache_version: int = _CACHE_VERSION) -> Optional[Tuple[pd.DataFrame, pd.DataFrame]]:
     """Load raw match data for Streamlit app.
     
-    Uses original data from data/tml/ which has player names.
+    Uses original data from tml-data/ which has player names.
     
     Returns:
-        tuple: (full_df, test_df) - Combined dataset and test dataset (2025)
+        tuple: (full_df, test_df) - Combined dataset and test dataset (2025-2026)
     """
     try:
-        data_dir = Path('data/tml')
+        data_dir = Path('tml-data')
         
-        # Load years 2012-2025 for full history
+        # Load years 2012-2026 for full history
         all_dfs = []
-        for year in range(2012, 2026):
+        for year in range(2012, 2027):  # 2012-2026
             file_path = data_dir / f'{year}.csv'
             if file_path.exists():
                 df = pd.read_csv(file_path)
@@ -31,22 +31,22 @@ def load_database(_cache_version: int = _CACHE_VERSION) -> Optional[Tuple[pd.Dat
                 all_dfs.append(df)
         
         if not all_dfs:
-            st.error("No data files found in data/tml/")
-            return None, None
+            st.error("No data files found in tml-data/")
+            return None
         
         full_df = pd.concat(all_dfs, ignore_index=True)
         
         # Convert to P1/P2 format with names
         full_df = _convert_to_p1_p2_with_names(full_df)
         
-        # Split test (2025)
-        test_df = full_df[full_df['data_year'] == 2025].copy()
+        # Split test (2025-2026)
+        test_df = full_df[full_df['data_year'] >= 2025].copy()
         
         return full_df, test_df
         
     except Exception as e:
         st.error(f"Error loading data: {e}")
-        return None, None
+        return None
 
 
 def _convert_to_p1_p2_with_names(df: pd.DataFrame) -> pd.DataFrame:
@@ -132,6 +132,9 @@ def get_unique_players(_df):
     Returns:
         DataFrame: Unique players sorted by rank
     """
+    if _df is None or len(_df) == 0:
+        return pd.DataFrame({'name': [], 'rank': [], 'points': []})
+    
     _df_sorted = _df.sort_index(ascending=False)
     
     p1_players = _df_sorted[['p1_name', 'p1_rank', 'p1_rank_points']].rename(

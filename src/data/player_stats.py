@@ -1,6 +1,7 @@
 """Player statistics and match history utilities."""
 
 from typing import Optional, Tuple
+from pathlib import Path
 import pandas as pd
 import streamlit as st
 import re
@@ -13,15 +14,18 @@ _CACHE_VERSION = 3
 @st.cache_data(show_spinner=False)
 def _load_tml_matches(_cache_version: int = _CACHE_VERSION):
     """Load processed matches with scores for lookup (train + latest test).
-    Uses: data/processed/train_2012_2024.csv and data/processed/test_2025.csv
+    Uses: tml-data/ yearly CSV files
     Returns a DataFrame with columns: tourney_id, tourney_name, surface, tourney_date, winner_name, loser_name, score.
     """
     frames = []
-    paths = [
-        'data/processed/train_2012_2024.csv',
-        'data/processed/test_2025.csv'
-    ]
-    for path in paths:
+    data_dir = Path('tml-data')
+    
+    # Load all years 2012-2026
+    for year in range(2012, 2027):
+        path = data_dir / f'{year}.csv'
+        if not path.exists():
+            continue
+            
         try:
             df = pd.read_csv(
                 path,
@@ -32,20 +36,9 @@ def _load_tml_matches(_cache_version: int = _CACHE_VERSION):
             )
             frames.append(df)
         except Exception as e:
-            # Fallback: try different encodings if needed
-            for enc in ('utf-8-sig', 'latin1', 'cp1252'):
-                try:
-                    df = pd.read_csv(path, encoding=enc)
-                    frames.append(df[[
-                        'tourney_id', 'tourney_name', 'surface', 'tourney_date',
-                        'winner_name', 'loser_name', 'score'
-                    ]])
-                    break
-                except Exception:
-                    continue
-            else:
-                st.warning(f"Unable to load processed matches from {path}: {e}")
-                continue
+            st.warning(f"Unable to load {path.name}: {e}")
+            continue
+    
     if frames:
         df = pd.concat(frames, ignore_index=True)
         # Precompute normalized fields for robust lookup

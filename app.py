@@ -3,9 +3,8 @@
 A machine learning application for predicting ATP tennis match outcomes.
 Built with XGBoost and Streamlit for interactive predictions.
 
-Model Performance:
-    - ROC-AUC: 0.71
-    - Accuracy: 65.2%
+Model Performance (Latest):
+    - Metrics loaded from models/model_metrics.txt
     - No data leakage - all features available before match
 
 Author: Vladyslav Romaniuk
@@ -30,9 +29,7 @@ from src.features import calculate_features
 from src.models import load_model, prepare_features_for_prediction, predict_match
 
 
-# =============================================================================
 # Page Configuration
-# =============================================================================
 
 st.set_page_config(
     page_title="Tennis Match Predictor",
@@ -42,9 +39,7 @@ st.set_page_config(
 )
 
 
-# =============================================================================
 # Custom CSS Styles
-# =============================================================================
 
 st.markdown("""
     <style>
@@ -208,18 +203,21 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 
-# =============================================================================
 # Data Loading
-# =============================================================================
 
 model, feature_cols, label_encoders = load_model()
 db_result = load_database()
 
 if db_result is None:
-    st.error("Failed to load database. Please check data files.")
+    st.error("Failed to load database. Please check data files in tml-data/")
     st.stop()
 
 db, test_db = db_result
+
+# Check if test_db is not None
+if test_db is None or len(test_db) == 0:
+    st.warning("No test data available")
+    test_db = db  # Use all data if no test data available
 
 model_available = all([
     model is not None,
@@ -230,15 +228,13 @@ model_available = all([
 if not model_available:
     st.warning(
         "Prediction model not found. The 'Prediction' tab is temporarily unavailable. "
-        "Run `python scripts/run_pipeline.py --full` to train the model."
+        "Run `python scripts/train_model.py` to train the model."
     )
 
 players_df = get_unique_players(test_db)
 
 
-# =============================================================================
 # Sidebar Navigation
-# =============================================================================
 
 options = ["Player History"] + (["Prediction"] if model_available else [])
 page = st.sidebar.radio(
@@ -248,36 +244,9 @@ page = st.sidebar.radio(
     help="Switch between pages using this menu"
 )
 
-st.sidebar.markdown("---")
-st.sidebar.markdown("### ⚙️ Settings")
-
-if st.sidebar.button("🔄 Update Data & Model", use_container_width=False):
-    with st.spinner("Updating data and retraining model..."):
-        result = subprocess.run(
-            [sys.executable, "scripts/run_pipeline.py", "--full", "--production"],
-            capture_output=True,
-            text=True,
-            cwd=str(__file__).rsplit('/', 1)[0] if '/' in str(__file__) else "."
-        )
-        
-        if result.returncode == 0:
-            st.sidebar.success("Data updated, model retrained!")
-            st.sidebar.info("Refresh the page (F5) to apply changes")
-            st.cache_data.clear()
-            st.cache_resource.clear()
-        else:
-            st.sidebar.error(f"Error: {result.stderr[:500]}")
-
-model_path = "models/xgboost_calibrated_model.pkl"
-if os.path.exists(model_path):
-    mtime = os.path.getmtime(model_path)
-    last_update = datetime.fromtimestamp(mtime).strftime("%Y-%m-%d %H:%M")
-    st.sidebar.caption(f"Model updated: {last_update}")
 
 
-# =============================================================================
 # Prediction Page
-# =============================================================================
 
 if page == "Prediction" and model_available:
     st.markdown("""
@@ -627,9 +596,7 @@ if page == "Prediction" and model_available:
                         """, unsafe_allow_html=True)
 
 
-# =============================================================================
 # Player History Page
-# =============================================================================
 
 elif page == "Player History":
     st.title("👤 Player Statistics")
