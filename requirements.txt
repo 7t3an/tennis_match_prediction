@@ -1,52 +1,16 @@
-# Data Processing
+# Core
 pandas
 numpy
-scipy 
-
-#---- 
-seaborn
-
-# Database
-sqlalchemy
-psycopg2-binary
+scipy
 
 # Machine Learning
 scikit-learn
 xgboost
-catboost
-lightgbm
-imbalanced-learn
 
-# MLflow
-mlflow
-
-# Web Scraping
-requests
-beautifulsoup4
-selenium
-lxml
-
-# API
-fastapi
-uvicorn
-
-# Streamlit + візуалізація
+# Web App
 streamlit
 plotly
-altair
 
-# Utils
-python-dotenv
-pyyaml
-tqdm
+# Utilities
 joblib
-
-# Logging
-loguru
-
-# Testing
-pytest
-pytest-cov
-
-# Selenium helper (обов'язково!)
-webdriver-manager
+python-dotenv
