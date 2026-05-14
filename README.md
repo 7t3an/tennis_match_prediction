@@ -3,7 +3,7 @@
 Machine learning system that predicts ATP tennis match outcomes using XGBoost.  
 Trained on 14 years of official ATP data (2012–2026), calibrated with isotonic regression and temperature scaling.
 
-**Live demo →** [tennis-predictor.streamlit.app](https://tennis-match-prediction.streamlit.app) *(deploy instructions below)*
+**Live demo →** https://tennismatchprediction-qyr6ukbtkw5to7n4kzyjta.streamlit.app/
 
 ---
 
