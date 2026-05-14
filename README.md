@@ -30,7 +30,7 @@ Accuracy by confidence bracket:
 
 ---
 
-## Benchmark — Australian Open 2026
+## Benchmark - Australian Open 2026
 
 Compared against [Predix Sport](https://www.predixsport.com/tennis_predictions) (commercial platform, 500+ features) across R32–Final:
 
@@ -57,13 +57,13 @@ Compared against [Predix Sport](https://www.predixsport.com/tennis_predictions) 
 | Context | `surface_encoded`, `tourney_level_encoded` |
 | Physical | `age_diff`, `height_diff`, `hand` |
 
-**No data leakage:** rolling stats use `shift(1).rolling()` — current match is excluded. Enforced by an automated leakage validator that aborts the pipeline on violation.
+**No data leakage:** rolling stats use `shift(1).rolling()` - current match is excluded. Enforced by an automated leakage validator that aborts the pipeline on violation.
 
 ---
 
 ## Data
 
-Source: [JeffSackmann/tennis_atp](https://github.com/JeffSackmann/tennis_atp) — the open-source standard for historical ATP match data.
+Source: [JeffSackmann/tennis_atp](https://github.com/JeffSackmann/tennis_atp) - the open-source standard for historical ATP match data.
 
 | Split | Period | Matches |
 |---|---|---|
@@ -90,7 +90,7 @@ streamlit run app.py
 1. Fork this repo (or push your own copy)
 2. Go to [share.streamlit.io](https://share.streamlit.io) → **New app**
 3. Select repo `tennis_match_prediction`, branch `main`, file `app.py`
-4. Click **Deploy** — free, public URL in ~2 minutes
+4. Click **Deploy** - free, public URL in ~2 minutes
 
 ---
 
