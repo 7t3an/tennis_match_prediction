@@ -133,4 +133,4 @@ tennis_match_prediction/
 
 ---
 
-*Vladyslav Romaniuk — Bachelor's thesis project, 2026*
+*Vladyslav Antoniuk — Bachelor's thesis project, 2026*
