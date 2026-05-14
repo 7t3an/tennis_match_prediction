@@ -254,6 +254,7 @@ class TennisPredictionPipeline:
         
         logger.info(f"Saved metrics: {metrics_txt_path}")
         logger.info(f"Updated history: {metrics_csv_path}")
+
     def retrain_on_full_data(self) -> Dict:
         """
         Retrain model on complete dataset (train + test).

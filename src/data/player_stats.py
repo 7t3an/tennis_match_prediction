@@ -156,6 +156,8 @@ def _normalize_score_for_player(score_str: str, player_won: bool) -> str:
         else:
             out.append(tok)
     return ' '.join(out)
+
+
 def _extract_match_status(score_str: str):
     """Extract special match status (RET, W/O, DEF, ABD) and cleaned score.
     Returns tuple: (status_or_None, cleaned_score_str)

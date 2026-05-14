@@ -1,0 +1,40 @@
+# Development and training dependencies
+# Install alongside requirements.txt: pip install -r requirements_dev.txt
+
+# Feature engineering pipeline
+tqdm
+imbalanced-learn
+
+# Additional ML libraries used during experimentation
+catboost
+lightgbm
+
+# Experiment tracking
+mlflow
+
+# Data collection
+requests
+beautifulsoup4
+selenium
+webdriver-manager
+lxml
+
+# API (optional)
+fastapi
+uvicorn
+
+# Visualization (notebooks)
+seaborn
+altair
+
+# Database connectors
+sqlalchemy
+psycopg2-binary
+
+# Utilities
+pyyaml
+loguru
+
+# Testing
+pytest
+pytest-cov
