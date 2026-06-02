@@ -191,6 +191,15 @@ if not model_available:
 # Use TEST 2025 data for current player list
 players_df = get_unique_players(test_db)
 
+# Build rank-ordered player list for selectboxes (ATP rank order, best first)
+_valid_players = players_df[players_df['rank'].notna() & (players_df['rank'] > 0)].copy()
+_valid_players = _valid_players.sort_values('rank').reset_index(drop=True)
+players_ranked_list = [
+    (row['name'], f"#{int(row['rank'])}  {row['name']}")
+    for _, row in _valid_players.iterrows()
+]
+# players_ranked_list: list of (value, display_label) tuples sorted by ATP rank
+
 # Sidebar navigation (left drawer)
 options = ["📊 Player History"] + (["🎯 Prediction"] if model_available else [])
 page = st.sidebar.radio(
@@ -218,9 +227,11 @@ if page == "🎯 Prediction" and model_available:
         st.markdown("#### 👤 Player 1")
         p1_name = st.selectbox(
             "Select player:",
-            options=[''] + sorted(players_df['name'].tolist()),
+            options=[''] + [v for v, _ in players_ranked_list],
             key='p1_name',
-            format_func=lambda x: "-- Select player --" if x == '' else x,
+            format_func=lambda x: "-- Select player --" if x == '' else next(
+                (lbl for val, lbl in players_ranked_list if val == x), x
+            ),
             label_visibility="collapsed"
         )
         
@@ -239,9 +250,11 @@ if page == "🎯 Prediction" and model_available:
         st.markdown("#### 👤 Player 2")
         p2_name = st.selectbox(
             "Select player:",
-            options=[''] + sorted(players_df['name'].tolist()),
+            options=[''] + [v for v, _ in players_ranked_list],
             key='p2_name',
-            format_func=lambda x: "-- Select player --" if x == '' else x,
+            format_func=lambda x: "-- Select player --" if x == '' else next(
+                (lbl for val, lbl in players_ranked_list if val == x), x
+            ),
             label_visibility="collapsed"
         )
         
@@ -461,9 +474,11 @@ elif page == "📊 Player History":
     
     selected_player = st.selectbox(
         "Select player:",
-        options=[''] + sorted(players_df['name'].tolist()),
+        options=[''] + [v for v, _ in players_ranked_list],
         key='history_player',
-        format_func=lambda x: "-- Select player --" if x == '' else x
+        format_func=lambda x: "-- Select player --" if x == '' else next(
+            (lbl for val, lbl in players_ranked_list if val == x), x
+        )
     )
     
     if selected_player and selected_player != '':
